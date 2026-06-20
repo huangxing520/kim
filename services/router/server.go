@@ -42,10 +42,14 @@ func RunServerStart(ctx context.Context, opts *ServerStartOptions, version strin
 	if err != nil {
 		return err
 	}
-	_ = logger.Init(logger.Settings{
+	if err := logger.Init(logger.Settings{
 		Level:    "info",
 		Filename: "./data/router.log",
-	})
+		Kafka:    config.Kafka,
+	}); err != nil {
+		return err
+	}
+	defer logger.Close()
 
 	mappings, err := conf.LoadMapping(path.Join(opts.data, "mapping.json"))
 	if err != nil {

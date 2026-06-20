@@ -44,10 +44,14 @@ func RunServerStart(ctx context.Context, opts *ServerStartOptions, version strin
 	if err != nil {
 		return err
 	}
-	_ = logger.Init(logger.Settings{
+	if err := logger.Init(logger.Settings{
 		Level:    config.LogLevel,
 		Filename: "./data/royal.log",
-	})
+		Kafka:    config.Kafka,
+	}); err != nil {
+		return err
+	}
+	defer logger.Close()
 
 	// database.Init
 	var (
@@ -63,7 +67,7 @@ func RunServerStart(ctx context.Context, opts *ServerStartOptions, version strin
 		return err
 	}
 
-	_ = baseDb.AutoMigrate(&database.Group{}, &database.GroupMember{})
+	_ = baseDb.AutoMigrate(&database.Group{}, &database.GroupMember{}, &database.User{})
 	_ = messageDb.AutoMigrate(&database.MessageIndex{}, &database.MessageContent{})
 
 	if config.NodeID == 0 {
@@ -78,7 +82,7 @@ func RunServerStart(ctx context.Context, opts *ServerStartOptions, version strin
 	if err != nil {
 		return err
 	}
-
+	//cache:= storage.NewRedisStorage(rdb)
 	ns, err := consul.NewNaming(config.ConsulURL)
 	if err != nil {
 		return err
@@ -136,7 +140,10 @@ func newApp(serviceHandler *handler.ServiceHandler) *iris.Application {
 		groupAPI.Delete("/member", serviceHandler.GroupQuit)
 		groupAPI.Get("/members/:id", serviceHandler.GroupMembers)
 	}
-
+	userAPI := app.Party("/api/:app/user")
+	{
+		userAPI.Post("/login", serviceHandler.Login)
+	}
 	offlineAPI := app.Party("/api/:app/offline")
 	{
 		offlineAPI.Use(iris.Compression)

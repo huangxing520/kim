@@ -14,10 +14,20 @@ const (
 
 // Token Token
 type Token struct {
-	Account string `json:"acc,omitempty"`
-	App     string `json:"app,omitempty"`
-	Exp     int64  `json:"exp,omitempty"`
+	Account     string `json:"acc,omitempty"`
+	App         string `json:"app,omitempty"`
+	Exp         int64  `json:"exp,omitempty"`
+	Password    string `json:"passwd,omitempty"`
+	AccessToken string `json:"access,omitempty"`
 }
+
+//type LoginToken struct {
+//	Account string `json:"acc,omitempty"`
+//	App     string `json:"app,omitempty"`
+//	Exp     int64  `json:"exp,omitempty"`
+//	Password string `json:"passwd,omitempty"`
+//
+//}
 
 var errExpiredToken = errors.New("expired token")
 

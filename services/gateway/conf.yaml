@@ -3,10 +3,22 @@ ServiceName: wgateway
 Listen: ":8000"
 MonitorPort: 8001
 PublicPort: 8000
+PublicAddress: localhost
 Tags:
   - IDC:SH_ALI
 Domain: ws://kingimcloud.com
-ConsulURL: localhost:8500
+ConsulURL: 192.168.31.77:8500
 AppSecret: ""
 MessageGPool: 5000
 ConnectionGPool: 15000
+Kafka:
+  Enable: false
+  Brokers:
+    - localhost:29092
+    - localhost:29192
+    - localhost:29292
+  Topic: kim_logs
+  BufferSize: 1024
+  Timeout: "10s"
+  ReplicationFactor: 3
+  Partitions: 3

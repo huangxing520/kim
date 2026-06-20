@@ -50,16 +50,22 @@ func RunServerStart(ctx context.Context, opts *ServerStartOptions, version strin
 	if err != nil {
 		return err
 	}
-	_ = logger.Init(logger.Settings{
+	if err := logger.Init(logger.Settings{
 		Level:    config.LogLevel,
 		Filename: "./data/server.log",
-	})
+		Kafka:    config.Kafka,
+	}); err != nil {
+		return err
+	}
+	defer logger.Close()
 
 	var groupService service.Group
 	var messageService service.Message
+	var userMessage service.User
 	if strings.TrimSpace(config.RoyalURL) != "" {
 		groupService = service.NewGroupService(config.RoyalURL)
 		messageService = service.NewMessageService(config.RoyalURL)
+		userMessage = service.NewUserService(config.RoyalURL)
 	} else {
 		srvRecord := &resty.SRVRecord{
 			Domain:  "consul",
@@ -67,13 +73,14 @@ func RunServerStart(ctx context.Context, opts *ServerStartOptions, version strin
 		}
 		groupService = service.NewGroupServiceWithSRV("http", srvRecord)
 		messageService = service.NewMessageServiceWithSRV("http", srvRecord)
+		userMessage = service.NewUserServiceWithSRV("http", srvRecord)
 	}
 
 	r := kim.NewRouter()
 	r.Use(middleware.Recover())
 
 	// login
-	loginHandler := handler.NewLoginHandler()
+	loginHandler := handler.NewLoginHandler(userMessage)
 	r.Handle(wire.CommandLoginSignIn, loginHandler.DoSysLogin)
 	r.Handle(wire.CommandLoginSignOut, loginHandler.DoSysLogout)
 	// talk

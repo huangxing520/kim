@@ -32,6 +32,7 @@ type Config struct {
 	BaseDb        string
 	MessageDb     string
 	LogLevel      string `default:"INFO"`
+	Kafka         logger.KafkaSettings
 }
 
 func (c Config) String() string {

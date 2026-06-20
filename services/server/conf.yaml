@@ -2,11 +2,23 @@ ServiceID: chat01
 Listen: ":8005"
 MonitorPort: 8006
 PublicPort: 8005
+PublicAddress: localhost
 Tags:
   - server
 Zone: zone_ali_03
 ConsulURL: localhost:8500
-RedisAddrs: localhost:6379
+RedisAddrs: localhost:16378
 RoyalURL: http://localhost:8080
 MessageGPool: 5000
 ConnectionGPool: 500
+Kafka:
+  Enable: false
+  Brokers:
+    - localhost:29092
+    - localhost:29192
+    - localhost:29292
+  Topic: kim_logs
+  BufferSize: 1024
+  Timeout: "10s"
+  ReplicationFactor: 3
+  Partitions: 3

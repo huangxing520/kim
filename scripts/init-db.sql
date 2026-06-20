@@ -1,0 +1,11 @@
+CREATE DATABASE IF NOT EXISTS kim_base
+  DEFAULT CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+CREATE DATABASE IF NOT EXISTS kim_message
+  DEFAULT CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+GRANT ALL PRIVILEGES ON kim_base.* TO 'kim_user'@'%';
+GRANT ALL PRIVILEGES ON kim_message.* TO 'kim_user'@'%';
+FLUSH PRIVILEGES;

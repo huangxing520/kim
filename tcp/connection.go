@@ -48,7 +48,10 @@ func NewConn(conn net.Conn) kim.Conn {
 	return &TcpConn{
 		Conn: conn,
 		rd:   bufio.NewReaderSize(conn, 4096),
-		wr:   bufio.NewWriterSize(conn, 1024),
+		// 【修复#16】原代码 wr: bufio.NewWriterSize(conn, 1024) 写缓冲区过小
+		// 1024 字节的写缓冲区会导致稍大的消息体就触发系统调用
+		// 新加的：扩大写缓冲区到 8192，减少系统调用次数
+		wr: bufio.NewWriterSize(conn, 8192), // 新加的：从 1024 扩大到 8192
 	}
 }
 

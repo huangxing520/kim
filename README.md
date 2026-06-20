@@ -67,3 +67,4 @@ docker-compose -f "docker-compose-kim.yml" up -d --build
 访问Consul，可以查看服务启动状态：
 
 > http://localhost:8500/ui
+# consul agent -dev -bind=192.168.31.116 -advertise=192.168.31.116 -client=0.0.0.0

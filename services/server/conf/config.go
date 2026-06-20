@@ -33,6 +33,7 @@ type Config struct {
 	LogLevel        string `default:"DEBUG"`
 	MessageGPool    int    `default:"5000"`
 	ConnectionGPool int    `default:"500"`
+	Kafka           logger.KafkaSettings
 }
 
 func (c Config) String() string {

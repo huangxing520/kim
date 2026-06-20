@@ -2,11 +2,8 @@ package logger
 
 import (
 	"context"
-	"path/filepath"
 	"time"
 
-	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
-	"github.com/rifflock/lfshook"
 	"github.com/sirupsen/logrus"
 )
 
@@ -16,90 +13,6 @@ var (
 
 // Fields Fields
 type Fields map[string]interface{}
-
-// Option Option
-type Option func(opts *Options)
-
-// Options Options
-type Options struct {
-	Format        string
-	RotationCount int
-	LogLevel      string
-}
-
-// WithRotationCount set rotaion count of log files
-func WithRotationCount(v int) Option {
-	return func(opts *Options) {
-		opts.RotationCount = v
-	}
-}
-
-// WithFormat set format of log files, text or json
-func WithFormat(format string) Option {
-	return func(opts *Options) {
-		opts.Format = format
-	}
-}
-
-// WithLevel set log level
-func WithLevel(level string) Option {
-	return func(opts *Options) {
-		opts.LogLevel = level
-	}
-}
-
-// InitDailyRolling init a logger with default 7 days remained
-func InitDailyRolling(fileDir, fileName string, opts ...Option) error {
-	logfile := filepath.Join(fileDir, fileName)
-	options := &Options{
-		Format:        "text",
-		RotationCount: 7,
-		LogLevel:      "debug",
-	}
-	for _, opt := range opts {
-		opt(options)
-	}
-
-	writer, err := rotatelogs.New(
-		logfile+".%Y%m%d",
-		// WithLinkName为最新的日志建立软连接，以方便随着找到当前日志文件
-		rotatelogs.WithLinkName(logfile),
-
-		// WithRotationTime设置日志分割的时间，这里设置为一小时分割一次
-		rotatelogs.WithRotationTime(time.Hour*24),
-
-		// WithMaxAge和WithRotationCount二者只能设置一个，
-		// WithMaxAge设置文件清理前的最长保存时间，
-		// WithRotationCount设置文件清理前最多保存的个数。
-		//rotatelogs.WithMaxAge(time.Hour*24),
-		rotatelogs.WithRotationCount(uint(options.RotationCount)),
-	)
-	if err != nil {
-		return err
-	}
-
-	var logfr logrus.Formatter
-	if options.Format == "json" {
-		logfr = &logrus.JSONFormatter{
-			DisableTimestamp: false,
-		}
-	} else {
-		logfr = &logrus.TextFormatter{DisableColors: true}
-	}
-	_ = SetLevel(options.LogLevel)
-
-	lfsHook := lfshook.NewHook(lfshook.WriterMap{
-		logrus.InfoLevel:  writer,
-		logrus.WarnLevel:  writer,
-		logrus.ErrorLevel: writer,
-		logrus.FatalLevel: writer,
-		logrus.PanicLevel: writer,
-	}, logfr)
-	std.AddHook(lfsHook)
-
-	std.Info("***********This is logrus*************")
-	return nil
-}
 
 // SetLevel SetLevel
 func SetLevel(level string) error {

@@ -21,4 +21,5 @@ type SessionStorage interface {
 	GetLocations(account ...string) ([]*Location, error)
 	// Get Location by account and device
 	GetLocation(account string, device string) (*Location, error)
+	RedisGet(key string) (string, error)
 }

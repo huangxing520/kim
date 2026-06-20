@@ -12,7 +12,7 @@ import (
 const wsurl = "ws://localhost:8000"
 
 func Test_login(t *testing.T) {
-	cli, err := dialer.Login(wsurl, "test1")
+	cli, err := dialer.Login(wsurl, "huangxing")
 	assert.Nil(t, err)
 	time.Sleep(time.Second * 2)
 	cli.Close()

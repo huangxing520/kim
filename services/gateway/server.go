@@ -51,10 +51,14 @@ func RunServerStart(ctx context.Context, opts *ServerStartOptions, version strin
 	if err != nil {
 		return err
 	}
-	_ = logger.Init(logger.Settings{
-		Level:    "trace",
+	if err := logger.Init(logger.Settings{
+		Level:    config.LogLevel,
 		Filename: "./data/gateway.log",
-	})
+		Kafka:    config.Kafka,
+	}); err != nil {
+		return err
+	}
+	defer logger.Close()
 
 	handler := &serv.Handler{
 		ServiceID: config.ServiceID,

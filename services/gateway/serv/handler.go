@@ -3,7 +3,7 @@ package serv
 import (
 	"bytes"
 	"fmt"
-	"regexp"
+	"strings" // 【修复#3】新加的：用 strings.LastIndex 替代正则表达式
 	"time"
 
 	"github.com/klintcheng/kim"
@@ -63,13 +63,19 @@ func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta
 	if secret == "" {
 		secret = token.DefaultSecret
 	}
+
+	//err = wsutil.WriteServerMessage(conn, ws.OpText, []byte("12345"))
+	//if err != nil {
+	//	log.Println(err)
+	//}
 	// 4. 使用默认的DefaultSecret 解析token
 	tk, err := token.Parse(secret, login.Token)
 	if err != nil {
 		// 5. 如果token无效，就返回SDK一个Unauthorized消息
 		resp := pkt.NewFrom(&req.Header)
 		resp.Status = pkt.Status_Unauthorized
-		_ = conn.WriteFrame(kim.OpBinary, pkt.Marshal(resp))
+		err1 := conn.WriteFrame(kim.OpBinary, pkt.Marshal(resp))
+		print(err1)
 		return "", nil, err
 	}
 	// 6. 生成一个全局唯一的ChannelID
@@ -78,11 +84,13 @@ func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta
 
 	req.ChannelId = id
 	req.WriteBody(&pkt.Session{
-		Account:   tk.Account,
-		ChannelId: id,
-		GateId:    h.ServiceID,
-		App:       tk.App,
-		RemoteIP:  getIP(conn.RemoteAddr().String()),
+		Account:     tk.Account,
+		ChannelId:   id,
+		GateId:      h.ServiceID,
+		Password:    tk.Password,
+		App:         tk.App,
+		AccessToken: tk.AccessToken,
+		RemoteIP:    getIP(conn.RemoteAddr().String()),
 	})
 	req.AddStringMeta(MetaKeyApp, tk.App)
 	req.AddStringMeta(MetaKeyAccount, tk.Account)
@@ -153,13 +161,22 @@ func (h *Handler) Disconnect(id string) error {
 	return nil
 }
 
-var ipExp = regexp.MustCompile(string("\\:[0-9]+$"))
+// 【修复#3】去掉原 var ipExp = regexp.MustCompile(string("\\:[0-9]+$"))
+// 原代码使用正则表达式匹配末尾的端口号，每次调用 ReplaceAllString 都会分配新字符串
+// 且正则匹配开销高于简单字符串操作
+// 新加的：使用 strings.LastIndex 实现相同功能，避免正则开销
 
 func getIP(remoteAddr string) string {
 	if remoteAddr == "" {
 		return ""
 	}
-	return ipExp.ReplaceAllString(remoteAddr, "")
+	// 【修复#3】新加的：用 strings.LastIndex 找最后一个冒号，截取 IP 部分
+	// 原代码：return ipExp.ReplaceAllString(remoteAddr, "")
+	// 新逻辑等价于去掉末尾 ":port"，且对 IPv6 也更安全（取最后一个冒号）
+	if idx := strings.LastIndex(remoteAddr, ":"); idx != -1 {
+		return remoteAddr[:idx] // 新加的：截取冒号前的部分
+	}
+	return remoteAddr
 }
 
 func generateChannelID(serviceID, account string) string {

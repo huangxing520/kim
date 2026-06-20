@@ -13,6 +13,7 @@ type Config struct {
 	Listen    string `default:":8100"`
 	ConsulURL string `default:"localhost:8500"`
 	LogLevel  string `default:"INFO"`
+	Kafka     logger.KafkaSettings
 }
 
 func (c Config) String() string {

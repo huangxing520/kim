@@ -1,31 +1,127 @@
-version: '3.1'
+networks:
+  kimnet:
+    driver: bridge
+
+x-controller-common: &controller_common
+  image: docker.io/apache/kafka:latest
+  restart: always
+  networks:
+    - kimnet
+  environment:
+    KAFKA_PROCESS_ROLES: controller
+    KAFKA_LISTENERS: CONTROLLER://:9093
+    KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+    KAFKA_CONTROLLER_QUORUM_VOTERS: 1@controller-1:9093,2@controller-2:9093,3@controller-3:9093
+    KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+    KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    KAFKA_CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk  # 保持不变（可自行修改）
+
+x-broker-common: &broker_common
+  image: docker.io/apache/kafka:latest
+  restart: always
+  networks:
+    - kimnet
+  environment:
+    KAFKA_PROCESS_ROLES: broker
+    KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+    KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+    KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+    KAFKA_LISTENERS: 'PLAINTEXT://:19092,PLAINTEXT_HOST://:9092'
+    KAFKA_CONTROLLER_QUORUM_VOTERS: 1@controller-1:9093,2@controller-2:9093,3@controller-3:9093
+    KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    KAFKA_CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
 
 services:
-  mysql:
-    image: docker.io/library/mysql:8.0
-    container_name: kim_mysql
-    command: --default-authentication-plugin=mysql_native_password
+  # ========== Controller 节点（仅元数据） ==========
+  controller-1:
+    <<: *controller_common
+    container_name: kim_controller_1
+    mem_limit: 1g
+    volumes:
+      - ~/data/controller-1:/opt/kafka/data
+    env_file: ./kafka/controller-1.env
+
+  controller-2:
+    <<: *controller_common
+    container_name: kim_controller_2
+    mem_limit: 1g
+    volumes:
+      - ~/data/controller-2:/opt/kafka/data
+    env_file: ./kafka/controller-2.env
+
+  controller-3:
+    <<: *controller_common
+    container_name: kim_controller_3
+    mem_limit: 1g
+    volumes:
+      - ~/data/controller-3:/opt/kafka/data
+    env_file: ./kafka/controller-3.env
+
+  # ========== Broker 节点（数据服务） ==========
+  broker-1:
+    <<: *broker_common
+    container_name: kim_broker_1
+    mem_limit: 4g
+    ports:
+      - "29092:9092"    # 对外访问端口 (host:29092→container:9092)
+    volumes:
+      - ~/data/broker-1:/opt/kafka/data
+    env_file: ./kafka/broker-1.env
+
+  broker-2:
+    <<: *broker_common
+    container_name: kim_broker_2
+    mem_limit: 4g
+    ports:
+      - "29192:9092"
+    volumes:
+      - ~/data/broker-2:/opt/kafka/data
+    env_file: ./kafka/broker-2.env
+
+  broker-3:
+    <<: *broker_common
+    container_name: kim_broker_3
+    mem_limit: 4g
+    ports:
+      - "29292:9092"
+    volumes:
+      - ~/data/broker-3:/opt/kafka/data
+    env_file: ./kafka/broker-3.env
+  mariadb:
+    image: docker.io/library/mariadb:11.8.8
+    container_name: kim_mariadb
     restart: always
     networks: 
       - kimnet
     ports:
-      - "3306:3306"
+      - "13306:3306"
     volumes:
-      - ~/data/mysql:/var/lib/mysql
+      - ~/data/mariadb:/var/lib/mysql
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     environment:
-      MYSQL_ROOT_PASSWORD: 123456
+      TZ: Asia/Shanghai
+      MARIADB_ROOT_PASSWORD: 123456
+      MARIADB_USER: kim_user
+      MARIADB_PASSWORD: user123
+    # 限制内存，防止占满服务器
+    mem_limit: 1g
+    # 统一字符集，解决中文乱码
+    command:
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-time-zone=+8:00
   redis:
-    image: docker.io/library/redis:6.2
+    image: docker.io/library/redis:7.2
     container_name: kim_redis
     command: redis-server
     networks: 
       - kimnet
     ports:
-      - "6379:6379"
+      - "16378:6379"
     volumes:
       - ~/data/redis:/data
   consul:
-    image: docker.io/library/consul:latest
+    image: docker.io/library/consul:1.15.4
     container_name: kim_consul
     networks: 
       - kimnet
@@ -34,11 +130,13 @@ services:
       - '8301:8301'
       - '8301:8301/udp'
       - '8500:8500'
-      - '53:53'
-      - '53:53/udp'
+      - '853:53'
+      - '853:53/udp'
     command: agent -dev -dns-port=53 -recursor=8.8.8.8 -ui -client=0.0.0.0
     environment:
       CONSUL_BIND_INTERFACE: eth0
       CONSUL_ALLOW_PRIVILEGED_PORTS: 53
-networks:
-  kimnet: {}
+ 
+#docker compose -f docker-compose.yml down
+#rm -rf ~/data/controller-* ~/data/broker-*
+#docker compose -f docker-compose.yml up -d

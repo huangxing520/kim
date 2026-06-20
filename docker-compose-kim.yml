@@ -1,4 +1,3 @@
-version: '3.1'
 services:
   router:
     image: docker.io/dockerklint/kim_router:v1.1
@@ -11,6 +10,11 @@ services:
     environment:
       KIM_CONSULURL: consul:8500
       KIM_LOGLEVEL: INFO
+      KIM_KAFKA_ENABLE: "false"
+      KIM_KAFKA_BROKERS: "broker-1:19092 broker-2:19092 broker-3:19092"
+      KIM_KAFKA_TOPIC: kim_logs
+      KIM_KAFKA_REPLICATIONFACTOR: "3"
+      KIM_KAFKA_PARTITIONS: "3"
   royal:
     image: docker.io/dockerklint/kim_royal:v1.4
     container_name: royal
@@ -23,9 +27,14 @@ services:
       KIM_PUBLICADDRESS: royal
       KIM_CONSULURL: consul:8500
       KIM_REDISADDRS: redis:6379
-      KIM_BASEDB: root:123456@tcp(mysql:3306)/kim_base?charset=utf8mb4&parseTime=True&loc=Local
-      KIM_MESSAGEDB: root:123456@tcp(mysql:3306)/kim_message?charset=utf8mb4&parseTime=True&loc=Local
+      KIM_BASEDB: kim_user:user123@tcp(mariadb:3306)/kim_base?charset=utf8mb4&parseTime=True&loc=Local
+      KIM_MESSAGEDB: kim_user:user123@tcp(mariadb:3306)/kim_message?charset=utf8mb4&parseTime=True&loc=Local
       KIM_LOGLEVEL: DEBUG
+      KIM_KAFKA_ENABLE: "false"
+      KIM_KAFKA_BROKERS: "broker-1:19092 broker-2:19092 broker-3:19092"
+      KIM_KAFKA_TOPIC: kim_logs
+      KIM_KAFKA_REPLICATIONFACTOR: "3"
+      KIM_KAFKA_PARTITIONS: "3"
   gateway:
     image: docker.io/dockerklint/kim_gateway:v1.4
     container_name: wgateway
@@ -41,6 +50,11 @@ services:
       KIM_LOGLEVEL: DEBUG
       KIM_TAGS: IDC:SH_ALI
       KIM_DOMAIN: ws://localhost:8000
+      KIM_KAFKA_ENABLE: "false"
+      KIM_KAFKA_BROKERS: "broker-1:19092 broker-2:19092 broker-3:19092"
+      KIM_KAFKA_TOPIC: kim_logs
+      KIM_KAFKA_REPLICATIONFACTOR: "3"
+      KIM_KAFKA_PARTITIONS: "3"
   server:
     image: docker.io/dockerklint/kim_server:v1.4
     container_name: chat
@@ -56,6 +70,11 @@ services:
       KIM_REDISADDRS: redis:6379
       KIM_LOGLEVEL: DEBUG
       KIM_ROYALURL: http://royal:8080
+      KIM_KAFKA_ENABLE: "false"
+      KIM_KAFKA_BROKERS: "broker-1:19092 broker-2:19092 broker-3:19092"
+      KIM_KAFKA_TOPIC: kim_logs
+      KIM_KAFKA_REPLICATIONFACTOR: "3"
+      KIM_KAFKA_PARTITIONS: "3"
     dns: consul
 networks:
   kimnet: {}

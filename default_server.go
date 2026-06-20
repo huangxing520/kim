@@ -111,6 +111,7 @@ func (s *DefaultServer) Start() error {
 
 	for {
 		rawconn, err := lst.Accept()
+		log.Info(s.Name(), "接受新的连接")
 		if err != nil {
 			if rawconn != nil {
 				rawconn.Close()
@@ -142,6 +143,7 @@ func (s *DefaultServer) connHandler(rawconn net.Conn, gpool *ants.Pool) {
 		rawconn.Close()
 		return
 	}
+
 	id, meta, err := s.Accept(conn, s.options.Loginwait)
 	if err != nil {
 		_ = conn.WriteFrame(OpClose, []byte(err.Error()))
@@ -161,15 +163,17 @@ func (s *DefaultServer) connHandler(rawconn net.Conn, gpool *ants.Pool) {
 	channel.SetReadWait(s.options.Readwait)
 	channel.SetWriteWait(s.options.Writewait)
 	s.Add(channel)
+	// 【修复#1】去掉原 logger.Infof("现在的channel %s", s.ChannelMap.All()) 调用
+	// 原代码每次 Accept 都会调用 All() 遍历全部 channel，万人在线时是 O(N) 热路径开销
+	// 新加的：仅记录当前新增的 channel ID，避免遍历整个 ChannelMap
+	logger.Infof("accept channel - ID: %s RemoteAddr: %s", channel.ID(), channel.RemoteAddr())
 
 	gaugeWithLabel := channelTotalGauge.WithLabelValues(s.ServiceID(), s.ServiceName())
 	gaugeWithLabel.Inc()
 	defer gaugeWithLabel.Dec()
-
-	logger.Infof("accept channel - ID: %s RemoteAddr: %s", channel.ID(), channel.RemoteAddr())
 	err = channel.Readloop(s.MessageListener)
 	if err != nil {
-		logger.Info(err)
+		logger.Info("某一个连接断开了", err)
 	}
 	s.Remove(channel.ID())
 	_ = s.Disconnect(channel.ID())
@@ -210,7 +214,11 @@ func (s *DefaultServer) Shutdown(ctx context.Context) error {
 // []byte data
 func (s *DefaultServer) Push(id string, data []byte) error {
 	ch, ok := s.ChannelMap.Get(id)
+	// 【修复#1】去掉原 logger.Infof("在push阶段所有的channel %s,查找到的id %s", s.ChannelMap.All(), ch)
+	// 原代码每次 Push 都会调用 All() 遍历全部 channel，是高频热路径上的 O(N) 开销
+	// 新加的：仅在未找到时记录调试日志，避免成功路径上的额外开销
 	if !ok {
+		logger.Debugf("channel not found in push, id: %s", id)
 		return errors.New("channel no found")
 	}
 	return ch.Push(data)

@@ -1,8 +1,7 @@
 package kim
 
 import (
-	"sync"
-
+	// 【修复#6】去掉原 "sync" 导入，ContextImpl 不再嵌入未使用的 sync.Mutex
 	"github.com/klintcheng/kim/logger"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/pkt"
@@ -39,7 +38,7 @@ type HandlersChain []HandlerFunc
 
 // ContextImpl is the most important part of kim
 type ContextImpl struct {
-	sync.Mutex
+	// 【修复#6】去掉原 sync.Mutex 嵌入字段，原代码从未使用过该锁，属于冗余字段
 	Dispatcher
 	SessionStorage
 
@@ -103,6 +102,11 @@ func (c *ContextImpl) Dispatch(body proto.Message, recvs ...*Location) error {
 	// the receivers group by the destination of gateway
 	group := make(map[string][]string)
 	for _, recv := range recvs {
+		// 【修复#13】新加的：跳过 nil Location（对应不在线的账号）
+		// 原 GetLocations 会跳过 nil，修复后保持顺序返回 nil，这里需要安全处理
+		if recv == nil {
+			continue // 新加的：跳过不在线的账号
+		}
 		if recv.ChannelId == c.Session().GetChannelId() {
 			continue
 		}
@@ -111,14 +115,20 @@ func (c *ContextImpl) Dispatch(body proto.Message, recvs ...*Location) error {
 		}
 		group[recv.GateId] = append(group[recv.GateId], recv.ChannelId)
 	}
+	// 【修复#2】原代码在 for 循环内部直接 return err，导致只有第一个 gateway 收到消息
+	// 群聊成员分布在多个 gateway 时，其他 gateway 上的成员收不到消息
+	// 新加的：聚合所有 gateway 的推送错误，全部推送完成后返回第一个错误
+	var firstErr error // 新加的：记录第一个出现的错误
 	for gateway, ids := range group {
 		err := c.Push(gateway, ids, packet)
 		if err != nil {
 			logger.Error(err)
+			if firstErr == nil { // 新加的：仅记录第一个错误，不中断后续 gateway 推送
+				firstErr = err
+			}
 		}
-		return err
 	}
-	return nil
+	return firstErr // 新加的：循环结束后统一返回错误
 }
 
 func (c *ContextImpl) reset() {

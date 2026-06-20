@@ -27,7 +27,9 @@ message Session {
     string remoteIP = 6;
     string device = 7;
     string app = 8;
-    repeated string tags = 9;
+    string password=9;
+    repeated string tags = 10;
+    string accessToken=11;
 }
 
 // chat message

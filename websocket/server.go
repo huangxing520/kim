@@ -26,6 +26,7 @@ func (u *Upgrader) Upgrade(rawconn net.Conn, rd *bufio.Reader, wr *bufio.Writer)
 	if err != nil {
 		return nil, err
 	}
+
 	conn := NewConnWithRW(rawconn, rd, wr)
 	return conn, nil
 }

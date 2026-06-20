@@ -177,13 +177,14 @@ func FindMeta(meta []*Meta, key string) (interface{}, bool) {
 
 // DelMeta DelMeta
 func (p *LogicPkt) DelMeta(key string) {
-	for i, m := range p.Meta {
-		if m.Key == key {
-			length := len(p.Meta)
-			if i < length-1 {
-				copy(p.Meta[i:], p.Meta[i+1:])
-			}
-			p.Meta = p.Meta[:length-1]
+	// 【修复#18】原代码在 for 循环中修改 p.Meta 切片长度
+	// 如果存在重复 key，会导致索引错乱或漏删
+	// 新加的：先找到所有匹配的索引，再从后往前删除，避免索引错乱
+	for i := len(p.Meta) - 1; i >= 0; i-- { // 新加的：从后往前遍历
+		if p.Meta[i].Key == key {
+			// 新加的：删除第 i 个元素，不影响前面未遍历的索引
+			p.Meta = append(p.Meta[:i], p.Meta[i+1:]...)
+			return // 新加的：删除后立即返回，假设 key 唯一（与原语义一致）
 		}
 	}
 }

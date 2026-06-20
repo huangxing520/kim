@@ -61,7 +61,10 @@ func (ch *ChannelsImpl) Get(id string) (Channel, bool) {
 
 // All return channels
 func (ch *ChannelsImpl) All() []Channel {
-	arr := make([]Channel, 0)
+	// 【修复#17】原代码 arr := make([]Channel, 0) 没有预分配容量
+	// sync.Map 无法获取长度，但可以预估一个容量减少扩容次数
+	// 新加的：预分配一个合理的初始容量，减少 append 时的多次扩容
+	arr := make([]Channel, 0, 64) // 新加的：预分配 64 容量，减少扩容
 	ch.channels.Range(func(key, val interface{}) bool {
 		arr = append(arr, val.(Channel))
 		return true

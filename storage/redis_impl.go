@@ -31,14 +31,15 @@ func (r *RedisStorage) Add(session *pkt.Session) error {
 		GateId:    session.GateId,
 	}
 	locKey := KeyLocation(session.Account, "")
-	err := r.cli.Set(locKey, loc.Bytes(), LocationExpired).Err()
-	if err != nil {
-		return err
-	}
-	// save session
 	snKey := KeySession(session.ChannelId)
 	buf, _ := proto.Marshal(session)
-	err = r.cli.Set(snKey, buf, LocationExpired).Err()
+	// 【修复#12】原代码两次独立的 Set 产生两次网络往返（2次 RTT）
+	// 登录是高频操作，应合并为一次 Pipeline 请求
+	// 新加的：使用 Pipeline 将两个 Set 合并为一次网络往返
+	pipe := r.cli.Pipeline()                       // 新加的：创建 Pipeline
+	pipe.Set(locKey, loc.Bytes(), LocationExpired) // 新加的：批量设置 location
+	pipe.Set(snKey, buf, LocationExpired)          // 新加的：批量设置 session
+	_, err := pipe.Exec()                          // 新加的：一次性执行，仅 1 次 RTT
 	if err != nil {
 		return err
 	}
@@ -48,13 +49,13 @@ func (r *RedisStorage) Add(session *pkt.Session) error {
 // Delete a session
 func (r *RedisStorage) Delete(account string, channelId string) error {
 	locKey := KeyLocation(account, "")
-	err := r.cli.Del(locKey).Err()
-	if err != nil {
-		return err
-	}
-
 	snKey := KeySession(channelId)
-	err = r.cli.Del(snKey).Err()
+	// 【修复#12】原代码两次独立的 Del 产生两次网络往返
+	// 新加的：使用 Pipeline 将两个 Del 合并为一次网络往返
+	pipe := r.cli.Pipeline() // 新加的：创建 Pipeline
+	pipe.Del(locKey)         // 新加的：批量删除 location
+	pipe.Del(snKey)          // 新加的：批量删除 session
+	_, err := pipe.Exec()    // 新加的：一次性执行，仅 1 次 RTT
 	if err != nil {
 		return err
 	}
@@ -82,16 +83,30 @@ func (r *RedisStorage) GetLocations(accounts ...string) ([]*kim.Location, error)
 	if err != nil {
 		return nil, err
 	}
-	var result = make([]*kim.Location, 0)
-	for _, l := range list {
+	// 【修复#13】原代码遍历 list 时跳过 nil 元素，导致返回的 Location 列表
+	// 丢失了与 accounts 的对应关系，调用方无法知道哪些账号不在线
+	// 群聊推送时可能导致错推或漏推
+	// 新加的：保持返回结果与 accounts 一一对应，nil 表示该账号不在线
+	result := make([]*kim.Location, len(accounts)) // 新加的：预分配与 accounts 等长的切片
+	for i, l := range list {
 		if l == nil {
+			result[i] = nil // 新加的：不在线的账号保留 nil，保持索引对应
 			continue
 		}
 		var loc kim.Location
 		_ = loc.Unmarshal([]byte(l.(string)))
-		result = append(result, &loc)
+		result[i] = &loc // 新加的：按原顺序填充
 	}
-	if len(result) == 0 {
+	// 【修复#13】原代码 len(result)==0 时返回 ErrSessionNil，但修复后 result 长度等于 accounts 长度
+	// 新加的：检查是否全部不在线
+	allNil := true // 新加的：标记是否全部账号都不在线
+	for _, loc := range result {
+		if loc != nil {
+			allNil = false
+			break
+		}
+	}
+	if allNil {
 		return nil, kim.ErrSessionNil
 	}
 	return result, nil
@@ -109,6 +124,11 @@ func (r *RedisStorage) GetLocation(account string, device string) (*kim.Location
 	var loc kim.Location
 	_ = loc.Unmarshal(bts)
 	return &loc, nil
+}
+
+func (r *RedisStorage) RedisGet(key string) (string, error) {
+	result, error := r.cli.Get(key).Result()
+	return result, error
 }
 
 func KeySession(channel string) string {

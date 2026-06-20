@@ -16,6 +16,15 @@ import (
 	"gorm.io/gorm/schema"
 )
 
+// 【修复#11】新加的：数据库连接池默认配置常量
+// 原代码未配置连接池参数，使用 GORM 默认值，高并发下可能耗尽 MySQL 连接数或频繁建立销毁连接
+const (
+	defaultMaxOpenConns    = 100              // 新加的：最大连接数
+	defaultMaxIdleConns    = 20               // 新加的：最大空闲连接数
+	defaultConnMaxLifetime = time.Hour        // 新加的：连接最大存活时间
+	defaultConnMaxIdleTime = time.Minute * 10 // 新加的：连接最大空闲时间
+)
+
 // InitMysqlDb init mysql database
 func InitDb(driver string, dsn string) (*gorm.DB, error) {
 	// dsn := "user:pass@tcp(127.0.0.1:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local"
@@ -41,6 +50,20 @@ func InitDb(driver string, dsn string) (*gorm.DB, error) {
 			SingularTable: true,                              // use singular table name, table for `User` would be `user` with this option enabled
 			NameReplacer:  strings.NewReplacer("CID", "Cid"), // use name replacer to change struct/field name before convert it to db name
 		}})
+	if err != nil {
+		return nil, err
+	}
 
-	return db, err
+	// 【修复#11】新加的：配置数据库连接池参数
+	// 原代码未设置连接池，高并发场景下会导致连接耗尽或频繁建连
+	sqlDB, err := db.DB() // 新加的：获取底层 *sql.DB
+	if err != nil {
+		return nil, err
+	}
+	sqlDB.SetMaxOpenConns(defaultMaxOpenConns)    // 新加的：设置最大连接数
+	sqlDB.SetMaxIdleConns(defaultMaxIdleConns)    // 新加的：设置最大空闲连接数
+	sqlDB.SetConnMaxLifetime(defaultConnMaxLifetime) // 新加的：设置连接最大存活时间
+	sqlDB.SetConnMaxIdleTime(defaultConnMaxIdleTime) // 新加的：设置连接最大空闲时间
+
+	return db, nil
 }

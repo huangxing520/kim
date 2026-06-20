@@ -1,7 +1,9 @@
 package ipregion
 
 import (
-	"github.com/lionsoul2014/ip2region/binding/golang/ip2region"
+	"strings"
+
+	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
 )
 
 type IpInfo struct {
@@ -16,32 +18,52 @@ type IpRegion interface {
 }
 
 type Ip2region struct {
-	region *ip2region.Ip2Region
+	searcher *xdb.Searcher
 }
 
 func NewIp2region(path string) (IpRegion, error) {
 	if path == "" {
-		path = "ip2region.db"
+		path = "ip2region.xdb"
 	}
-	region, err := ip2region.New(path)
+
+	// Load the entire xdb file into memory for fast queries
+	cBuff, err := xdb.LoadContentFromFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a searcher with the buffer
+	searcher, err := xdb.NewWithBuffer(xdb.IPv4, cBuff)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Ip2region{
-		region: region,
+		searcher: searcher,
 	}, nil
 }
 
 func (r *Ip2region) Search(ip string) (*IpInfo, error) {
-	info, err := r.region.MemorySearch(ip)
+	region, err := r.searcher.Search(ip)
 	if err != nil {
 		return nil, err
 	}
-	return &IpInfo{
-		Country: info.Country,
-		Region:  info.Region,
-		City:    info.City,
-		ISP:     info.ISP,
-	}, nil
+
+	// Parse the region string: "国家|区域|省份|城市|ISP"
+	parts := strings.Split(region, "|")
+	info := &IpInfo{}
+	if len(parts) >= 1 {
+		info.Country = parts[0]
+	}
+	if len(parts) >= 2 {
+		info.Region = parts[1]
+	}
+	if len(parts) >= 3 {
+		info.City = parts[2]
+	}
+	if len(parts) >= 5 {
+		info.ISP = parts[4]
+	}
+
+	return info, nil
 }

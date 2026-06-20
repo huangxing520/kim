@@ -1,3 +1,9 @@
 services/data/
 .vscode/
 .idea
+data/
+*debug*
+bin/
+.trae/
+.pid
+*.log

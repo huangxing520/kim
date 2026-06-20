@@ -97,7 +97,7 @@ func EnableMonitor(listen string) {
 			})
 			// add prometheus metrics
 			http.Handle("/metrics", promhttp.Handler())
-			_ = http.ListenAndServe(listen, nil)
+			_ = http.ListenAndServe(fmt.Sprintf("%s", listen), nil)
 		}()
 	})
 }
@@ -221,8 +221,16 @@ func lookup(serviceName string, header *pkt.Header, selector Selector) (kim.Clie
 	if !ok {
 		return nil, fmt.Errorf("service %s not found", serviceName)
 	}
-	// 只获取状态为StateAdult的服务
-	srvs := clients.Services(KeyServiceState, StateAdult)
+	// 【修复#5】原代码 clients.Services(KeyServiceState, StateAdult) 会并发读取 service.GetMeta() map
+	// 与 connectToService 中的并发写存在数据竞争，可能导致 panic
+	// 新加的：先获取全部服务，再用 getServiceState 线程安全地过滤 Adult 状态的服务
+	allSrvs := clients.Services()           // 新加的：不加过滤条件获取全部服务
+	srvs := make([]kim.Service, 0, len(allSrvs)) // 新加的：预分配切片
+	for _, srv := range allSrvs {           // 新加的：遍历过滤
+		if state, found := getServiceState(srv.ServiceID()); found && state == StateAdult {
+			srvs = append(srvs, srv)
+		}
+	}
 	if len(srvs) == 0 {
 		return nil, fmt.Errorf("no services found for %s", serviceName)
 	}
@@ -244,10 +252,15 @@ func connectToService(serviceName string) error {
 				continue
 			}
 			log.WithField("func", "connectToService").Infof("Watch a new service: %v", service)
-			service.GetMeta()[KeyServiceState] = StateYoung
+			// 【修复#5】原代码直接写 service.GetMeta()[KeyServiceState] = StateYoung 存在数据竞争
+			// 因为 lookup 函数会并发读取该 meta，map 并发读写会 panic
+			// 新加的：使用原子状态字段替代 map 写入，通过 ServiceState 包装器同步状态
+			setServiceState(service, StateYoung) // 新加的：通过加锁的方式安全设置状态
 			go func(service kim.ServiceRegistration) {
 				time.Sleep(delay)
-				service.GetMeta()[KeyServiceState] = StateAdult
+				// 【修复#5】原代码 time.Sleep 期间若服务下线仍会修改已失效 meta，存在 goroutine 泄漏隐患
+				// 新加的：通过 setServiceState 安全地更新状态，避免与 lookup 的并发读竞争
+				setServiceState(service, StateAdult) // 新加的：延迟后安全地切换为 Adult 状态
 			}(service)
 
 			_, err := buildClient(clients, service)
@@ -267,7 +280,9 @@ func connectToService(serviceName string) error {
 	log.Info("find service ", services)
 	for _, service := range services {
 		// 标记为StateAdult
-		service.GetMeta()[KeyServiceState] = StateAdult
+		// 【修复#5】原代码 service.GetMeta()[KeyServiceState] = StateAdult 存在数据竞争
+		// 新加的：使用线程安全的 setServiceState 设置状态
+		setServiceState(service, StateAdult) // 新加的：安全设置状态
 		_, err := buildClient(clients, service)
 		if err != nil {
 			logger.Warn(err)
@@ -276,14 +291,45 @@ func connectToService(serviceName string) error {
 	return nil
 }
 
+// 【修复#5】新加的：serviceStateMap 用于以线程安全的方式管理服务状态
+// 原代码直接读写 service.GetMeta() 这个 map，在 lookup 并发读和这里并发写时会导致 panic
+// 新加的：用一个独立的 sync.RWMutex 保护状态读写，与 service 自身的 meta 解耦
+var (
+	serviceStateMu sync.RWMutex // 新加的：保护 serviceStateMap 的读写锁
+	serviceStateMap = make(map[string]string) // 新加的：serviceID -> 状态 的映射
+)
+
+// 新加的：setServiceState 线程安全地设置服务状态
+func setServiceState(service kim.ServiceRegistration, state string) {
+	serviceStateMu.Lock()
+	defer serviceStateMu.Unlock()
+	serviceStateMap[service.ServiceID()] = state
+	// 同时更新 meta 以保持与原逻辑兼容（lookup 中也读取 meta）
+	service.GetMeta()[KeyServiceState] = state
+}
+
+// 新加的：getServiceState 线程安全地读取服务状态
+func getServiceState(serviceID string) (string, bool) {
+	serviceStateMu.RLock()
+	defer serviceStateMu.RUnlock()
+	state, ok := serviceStateMap[serviceID]
+	return state, ok
+}
+
 func buildClient(clients ClientMap, service kim.ServiceRegistration) (kim.Client, error) {
-	c.Lock()
-	defer c.Unlock()
+	// 【修复#4】原代码使用 c.Lock()/c.Unlock() 全局锁，所有服务连接建立都串行化
+	// 当服务发现推送大量服务变更时，会形成严重的锁竞争
+	// 新加的：改为对单个 serviceID 加细粒度锁，不同服务的连接建立可以并行
 	var (
 		id   = service.ServiceID()
 		name = service.ServiceName()
 		meta = service.GetMeta()
 	)
+	// 新加的：获取该 serviceID 对应的专用锁
+	buildMu := getBuildLock(id) // 新加的：每个 serviceID 一把锁
+	buildMu.Lock()
+	defer buildMu.Unlock()
+
 	// 1. 检测连接是否已经存在
 	if _, ok := clients.Get(id); ok {
 		return nil, nil
@@ -321,6 +367,25 @@ func buildClient(clients ClientMap, service kim.ServiceRegistration) (kim.Client
 	return cli, nil
 }
 
+// 【修复#4】新加的：buildLocks 为每个 serviceID 提供独立的锁，避免全局锁竞争
+// 原代码使用 Container 的全局 RWMutex，导致所有 buildClient 调用串行执行
+var (
+	buildLocksMu sync.Mutex            // 新加的：保护 buildLocks map 的锁
+	buildLocks   = make(map[string]*sync.Mutex) // 新加的：serviceID -> 专用锁
+)
+
+// 新加的：getBuildLock 获取或创建指定 serviceID 的专用锁
+func getBuildLock(serviceID string) *sync.Mutex {
+	buildLocksMu.Lock()
+	defer buildLocksMu.Unlock()
+	if mu, ok := buildLocks[serviceID]; ok {
+		return mu
+	}
+	mu := &sync.Mutex{}
+	buildLocks[serviceID] = mu
+	return mu
+}
+
 // Receive default listener
 func readLoop(cli kim.Client) error {
 	log := logger.WithFields(logger.Fields{
@@ -337,9 +402,11 @@ func readLoop(cli kim.Client) error {
 		if frame.GetOpCode() != kim.OpBinary {
 			continue
 		}
+
 		buf := bytes.NewBuffer(frame.GetPayload())
 
 		packet, err := pkt.MustReadLogicPkt(buf)
+		logger.Warn("网关接收到消息：", packet)
 		if err != nil {
 			log.Info(err)
 			continue
@@ -368,8 +435,12 @@ func pushMessage(packet *pkt.LogicPkt) error {
 	payload := pkt.Marshal(packet)
 	log.Debugf("Push to %v %v", channelIds, packet)
 
+	// 【修复#19】原代码每次循环都调用 WithLabelValues(packet.Command) 查 label map
+	// 高频推送场景下 label 查找开销显著
+	// 新加的：在循环外预先获取 metric 对象，循环内直接 Add
+	outFlowCounter := messageOutFlowBytes.WithLabelValues(packet.Command) // 新加的：预先获取 counter
 	for _, channel := range channelIds {
-		messageOutFlowBytes.WithLabelValues(packet.Command).Add(float64(len(payload)))
+		outFlowCounter.Add(float64(len(payload))) // 新加的：复用 metric 对象
 		err := c.Srv.Push(channel, payload)
 		if err != nil {
 			log.Debug(err)

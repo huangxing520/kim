@@ -78,7 +78,7 @@ func (r *RouterApi) Lookup(c iris.Context) {
 		"idc":      idc.ID,
 	}).Infof("lookup domain %v", domains)
 
-	_, _ = c.JSON(LookUpResp{
+	 _ = c.JSON(LookUpResp{
 		UTC:      time.Now().Unix(),
 		Location: string(location),
 		Domains:  domains,
@@ -95,20 +95,17 @@ func selectGateways(token string, gateways []kim.ServiceRegistration, num int) [
 	if len(gateways) <= num {
 		return gateways
 	}
-	slots := make([]int, 0, len(gateways)*10)
-	for i := range gateways {
-		for j := 0; j < 10; j++ {
-			slots = append(slots, i)
-		}
-	}
-	slot := hashcode(token) % len(slots)
-	i := slots[slot]
+	// 【修复#7】原代码每次都 make([]int, 0, len(gateways)*10) 并填充 slots 切片
+	// 路由查找是高频操作，每次分配 slots 切片造成 GC 压力
+	// 由于所有网关权重相同（都是10），slots[i] 的值就是 i，等价于直接 hashcode(token) % len(gateways)
+	// 新加的：直接取模确定起始位置，避免 slots 切片分配
+	start := hashcode(token) % len(gateways) // 新加的：直接取模确定起始索引
 	res := make([]kim.ServiceRegistration, 0, num)
 	for len(res) < num {
-		res = append(res, gateways[i])
-		i++
-		if i >= len(gateways) {
-			i = 0
+		res = append(res, gateways[start])
+		start++
+		if start >= len(gateways) {
+			start = 0
 		}
 	}
 	return res

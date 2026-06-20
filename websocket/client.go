@@ -83,6 +83,7 @@ func (c *Client) Connect(addr string) error {
 	c.conn = conn
 
 	if c.options.Heartbeat > 0 {
+		logger.Info("开启心跳模式")
 		go func() {
 			err := c.heartbeatloop(conn)
 			if err != nil {
@@ -98,7 +99,7 @@ func (c *Client) SetDialer(dialer kim.Dialer) {
 	c.Dialer = dialer
 }
 
-//Send data to connection
+// Send data to connection
 func (c *Client) Send(payload []byte) error {
 	if atomic.LoadInt32(&c.state) == 0 {
 		return fmt.Errorf("connection is nil")

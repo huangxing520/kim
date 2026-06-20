@@ -5,7 +5,6 @@ option go_package = "./rpc";
 
 message User {
     string account = 1;
-    string alias = 2;
     string avatar = 3;
     int64 created_at = 4;
 }
@@ -51,6 +50,20 @@ message CreateGroupReq {
     repeated string members = 6;
 }
 
+message CreateUserReq{
+    string app=1;
+    string account=2;
+    string password=3;
+    string name=4;
+}
+
+message LoginReq{
+    string account=1;
+    string password=2;
+}
+message LoginResp{
+    string AccessToken=1;
+}
 message CreateGroupResp {
     string group_id = 1;
 }

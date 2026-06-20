@@ -82,14 +82,15 @@ func filterSrvs(srvs []kim.Service, zone string) []kim.Service {
 }
 
 func selectSrvs(srvs []kim.Service, account string) kim.Service {
-	slots := make([]int, 0, len(srvs)*10)
-	for i := range srvs {
-		for j := 0; j < 10; j++ {
-			slots = append(slots, i)
-		}
+	// 【修复#7】原代码每次都 make([]int, 0, len(srvs)*10) 并填充 slots 切片
+	// 网关消息转发是极高频率操作，每次路由查找都分配 len(srvs)*10 大小的切片造成 GC 压力
+	// 由于所有服务权重相同（都是10），slots[i] 的值就是 i，等价于直接 hashcode(account) % len(srvs)
+	// 新加的：直接取模，避免 slots 切片分配
+	if len(srvs) == 0 {
+		return nil
 	}
-	slot := hashcode(account) % len(slots)
-	return srvs[slots[slot]]
+	slot := hashcode(account) % len(srvs) // 新加的：直接取模，等价于原 slots 逻辑
+	return srvs[slot]
 }
 
 func hashcode(key string) int {

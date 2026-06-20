@@ -1,9 +1,21 @@
 ServiceID: royal01
 Listen: ":8080"
 PublicPort: 8080
+PublicAddress: localhost
 Tags:
   - royal
 ConsulURL: localhost:8500
-RedisAddrs: localhost:6379
-BaseDb: root:123456@tcp(127.0.0.1:3306)/kim_base?charset=utf8mb4&parseTime=True&loc=Local
-MessageDb: root:123456@tcp(127.0.0.1:3306)/kim_message?charset=utf8mb4&parseTime=True&loc=Local
+RedisAddrs: localhost:16378
+BaseDb: root:123456@tcp(localhost:13306)/kim_base?charset=utf8mb4&parseTime=True&loc=Local
+MessageDb: root:123456@tcp(localhost:13306)/kim_message?charset=utf8mb4&parseTime=True&loc=Local
+Kafka:
+  Enable: false
+  Brokers:
+    - localhost:29092
+    - localhost:29192
+    - localhost:29292
+  Topic: kim_logs
+  BufferSize: 1024
+  Timeout: "10s"
+  ReplicationFactor: 3
+  Partitions: 3

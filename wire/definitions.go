@@ -74,6 +74,7 @@ const (
 	OfflineSyncIndexCount     = 2000                //单次同步消息索引的数量
 	OfflineMessageExpiresIn   = 15                  // 离线消息过期时间
 	MessageMaxCountPerPage    = 200                 // 同步消息内容时每页的最大数据
+	AccessTokenExpiresIn      = time.Hour * 24
 )
 
 const (

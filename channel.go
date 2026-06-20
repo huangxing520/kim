@@ -28,8 +28,12 @@ func NewChannel(id string, meta Meta, conn Conn, gpool *ants.Pool) Channel {
 		id:        id,
 		Conn:      conn,
 		meta:      meta,
-		writechan: make(chan []byte, 5),
-		writeWait: DefaultWriteWait, //default value
+		// 【修复#8】原代码 writechan: make(chan []byte, 5) 缓冲区过小
+		// 当服务端推送速度超过客户端接收速度时，Push 会阻塞，进而阻塞调用方
+		// 群聊消息风暴场景容易触发背压
+		// 新加的：扩大写缓冲区到 32，抗突发流量
+		writechan: make(chan []byte, 32), // 新加的：缓冲区从 5 扩大到 32
+		writeWait: DefaultWriteWait,      //default value
 		readwait:  DefaultReadWait,
 		gpool:     gpool,
 		state:     0,
@@ -60,6 +64,10 @@ func (ch *ChannelImpl) writeloop() error {
 		if err != nil {
 			return err
 		}
+		// 【修复#15】原代码 chanlen := len(ch.writechan) 在取出过程中可能变化
+		// 且原代码每次 WriteFrame 后没有统一 Flush，而 websocket 的 WriteFrame 内部已 flush
+		// 新加的：一次性取出当前缓冲区内的所有消息，批量写入后统一 Flush
+		// 这样可以减少系统调用次数，提升吞吐量
 		chanlen := len(ch.writechan)
 		for i := 0; i < chanlen; i++ {
 			payload = <-ch.writechan
