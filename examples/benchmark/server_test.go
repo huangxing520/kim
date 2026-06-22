@@ -9,7 +9,6 @@ import (
 
 	"github.com/klintcheng/kim"
 	"github.com/klintcheng/kim/examples/mock"
-	"github.com/klintcheng/kim/logger"
 	"github.com/klintcheng/kim/websocket"
 	"github.com/panjf2000/ants/v2"
 )
@@ -37,7 +36,7 @@ func Test_Parallel(t *testing.T) {
 			// step2: 建立连接
 			err := cli.Connect(wsurl)
 			if err != nil {
-				logger.Error(err)
+				fmt.Printf("connect error: %v\n", err)
 			}
 			clis[idx] = cli
 			wg.Done()
@@ -65,7 +64,7 @@ func Test_Message(t *testing.T) {
 	// step2: 建立连接
 	err := cli.Connect(wsurl)
 	if err != nil {
-		logger.Error(err)
+		fmt.Printf("connect error: %v\n", err)
 	}
 	msg := []byte(strings.Repeat("hello", 10))
 	t0 := time.Now()
@@ -78,7 +77,7 @@ func Test_Message(t *testing.T) {
 	for {
 		frame, err := cli.Read()
 		if err != nil {
-			logger.Info("time", time.Now().UnixNano(), err)
+			fmt.Printf("time %v %v\n", time.Now().UnixNano(), err)
 			break
 		}
 		if frame.GetOpCode() != kim.OpBinary {

@@ -83,11 +83,11 @@ func (c *Client) Connect(addr string) error {
 	c.conn = conn
 
 	if c.options.Heartbeat > 0 {
-		logger.Info("开启心跳模式")
+		logger.CommonLogger.Info("开启心跳模式")
 		go func() {
 			err := c.heartbeatloop(conn)
 			if err != nil {
-				logger.Error("heartbeatloop stopped ", err)
+				logger.CommonLogger.Error("heartbeatloop stopped ", err)
 			}
 		}()
 	}
@@ -166,7 +166,7 @@ func (c *Client) ping(conn net.Conn) error {
 	if err != nil {
 		return err
 	}
-	logger.Tracef("%s send ping to server", c.id)
+	logger.CommonLogger.Tracef("%s send ping to server", c.id)
 	return wsutil.WriteClientMessage(conn, ws.OpPing, nil)
 }
 

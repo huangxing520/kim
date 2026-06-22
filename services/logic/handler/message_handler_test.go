@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/klintcheng/kim/services/service/database"
+	"github.com/klintcheng/kim/services/logic/database"
 	"github.com/klintcheng/kim/wire/rpc"
 	"github.com/segmentio/ksuid"
 	"github.com/stretchr/testify/assert"

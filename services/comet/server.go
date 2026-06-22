@@ -1,4 +1,4 @@
-package server
+package comet
 
 import (
 	"context"
@@ -12,10 +12,10 @@ import (
 	"github.com/klintcheng/kim/middleware"
 	"github.com/klintcheng/kim/naming"
 	"github.com/klintcheng/kim/naming/consul"
-	"github.com/klintcheng/kim/services/server/conf"
-	"github.com/klintcheng/kim/services/server/handler"
-	"github.com/klintcheng/kim/services/server/serv"
-	"github.com/klintcheng/kim/services/server/service"
+	"github.com/klintcheng/kim/services/comet/conf"
+	"github.com/klintcheng/kim/services/comet/handler"
+	"github.com/klintcheng/kim/services/comet/serv"
+	"github.com/klintcheng/kim/services/comet/service"
 	"github.com/klintcheng/kim/storage"
 	"github.com/klintcheng/kim/tcp"
 	"github.com/klintcheng/kim/wire"
@@ -39,7 +39,7 @@ func NewServerStartCmd(ctx context.Context, version string) *cobra.Command {
 			return RunServerStart(ctx, opts, version)
 		},
 	}
-	cmd.PersistentFlags().StringVarP(&opts.config, "config", "c", "./server/conf.yaml", "Config file")
+	cmd.PersistentFlags().StringVarP(&opts.config, "config", "c", "./comet/conf.yaml", "Config file")
 	cmd.PersistentFlags().StringVarP(&opts.serviceName, "serviceName", "s", "chat", "defined a service name,option is login or chat")
 	return cmd
 }
@@ -50,14 +50,17 @@ func RunServerStart(ctx context.Context, opts *ServerStartOptions, version strin
 	if err != nil {
 		return err
 	}
-	if err := logger.Init(logger.Settings{
-		Level:    config.LogLevel,
-		Filename: "./data/server.log",
-		Kafka:    config.Kafka,
-	}); err != nil {
+	log, err := logger.Init(logger.Settings{
+		Level:       config.LogLevel,
+		Filename:    "./data/server.log",
+		ServiceName: "server",
+		Kafka:       config.Kafka,
+	})
+	if err != nil {
 		return err
 	}
-	defer logger.Close()
+	logger.CometLogger = log.Sugar()
+	defer log.Close()
 
 	var groupService service.Group
 	var messageService service.Message
@@ -78,7 +81,7 @@ func RunServerStart(ctx context.Context, opts *ServerStartOptions, version strin
 
 	r := kim.NewRouter()
 	r.Use(middleware.Recover())
-
+	r.Use(middleware.Recover())
 	// login
 	loginHandler := handler.NewLoginHandler(userMessage)
 	r.Handle(wire.CommandLoginSignIn, loginHandler.DoSysLogin)

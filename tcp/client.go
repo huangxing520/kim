@@ -79,7 +79,7 @@ func (c *Client) Connect(addr string) error {
 		go func() {
 			err := c.heartbeatloop()
 			if err != nil {
-				logger.WithField("module", "tcp.client").Warn("heartbeatloop stopped - ", err)
+				logger.CommonLogger.WithField("module", "tcp.client").Warn("heartbeatloop stopped - ", err)
 			}
 		}()
 	}
@@ -149,7 +149,7 @@ func (c *Client) heartbeatloop() error {
 }
 
 func (c *Client) ping() error {
-	logger.WithField("module", "tcp.client").Tracef("%s send ping to server", c.id)
+	logger.CommonLogger.WithField("module", "tcp.client").Tracef("%s send ping to server", c.id)
 
 	err := c.conn.WriteFrame(kim.OpPing, nil)
 	if err != nil {

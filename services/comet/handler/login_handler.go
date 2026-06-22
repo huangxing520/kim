@@ -4,7 +4,7 @@ import (
 	"errors"
 	"github.com/klintcheng/kim"
 	"github.com/klintcheng/kim/logger"
-	"github.com/klintcheng/kim/services/server/service"
+	"github.com/klintcheng/kim/services/comet/service"
 	"github.com/klintcheng/kim/wire/pkt"
 	"github.com/klintcheng/kim/wire/rpc"
 )
@@ -20,7 +20,7 @@ func NewLoginHandler(user service.User) *LoginHandler {
 }
 
 func (h *LoginHandler) DoSysLogin(ctx kim.Context) {
-	log := logger.WithField("func", "DoSysLogin")
+	log := logger.CometLogger.WithField("func", "DoSysLogin")
 	// 1. 序列化
 	var session pkt.Session
 	if err := ctx.ReadBody(&session); err != nil {
@@ -66,7 +66,7 @@ func (h *LoginHandler) DoSysLogin(ctx kim.Context) {
 }
 
 func (h *LoginHandler) DoSysLogout(ctx kim.Context) {
-	logger.WithField("func", "DoSysLogout").Infof("do Logout of %s %s ", ctx.Session().GetChannelId(), ctx.Session().GetAccount())
+	logger.CometLogger.WithField("func", "DoSysLogout").Infof("do Logout of %s %s ", ctx.Session().GetChannelId(), ctx.Session().GetAccount())
 
 	err := ctx.Delete(ctx.Session().GetAccount(), ctx.Session().GetChannelId())
 	if err != nil {

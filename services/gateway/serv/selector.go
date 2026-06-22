@@ -34,7 +34,7 @@ func (s *RouteSelector) Lookup(header *pkt.Header, srvs []kim.Service) string {
 		ri := rand.Intn(len(srvs))
 		return srvs[ri].ServiceID()
 	}
-	log := logger.WithFields(logger.Fields{
+	log := logger.GatewayLogger.WithFields(logger.Fields{
 		"app":     app,
 		"account": account,
 	})

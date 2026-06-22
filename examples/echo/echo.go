@@ -3,11 +3,11 @@ package echo
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/klintcheng/kim"
 	"github.com/klintcheng/kim/examples/dialer"
-	"github.com/klintcheng/kim/logger"
 	"github.com/klintcheng/kim/websocket"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/pkt"
@@ -58,7 +58,7 @@ func run(ctx context.Context, opts *StartOptions) error {
 			})
 			err := cli.Send(pkt.Marshal(p))
 			if err != nil {
-				logger.Error(err)
+				fmt.Println(err)
 				return
 			}
 			time.Sleep(time.Second)
@@ -70,7 +70,7 @@ func run(ctx context.Context, opts *StartOptions) error {
 	for {
 		frame, err := cli.Read()
 		if err != nil {
-			logger.Info(err)
+			fmt.Println(err)
 			break
 		}
 		if frame.GetOpCode() != kim.OpBinary {
@@ -80,25 +80,25 @@ func run(ctx context.Context, opts *StartOptions) error {
 
 		p, err := pkt.MustReadLogicPkt(bytes.NewBuffer(frame.GetPayload()))
 		if err != nil {
-			logger.Info(err)
+			fmt.Println(err)
 			break
 		}
 		if p.Status != pkt.Status_Success {
 			var errResp pkt.ErrorResp
 			_ = p.ReadBody(&errResp)
 
-			logger.Warnf("%s error:%s", cli.ServiceID(), errResp.Message)
+			fmt.Printf("%s error:%s\n", cli.ServiceID(), errResp.Message)
 		} else {
 			if p.Flag == pkt.Flag_Response {
 				var ack = new(pkt.MessageResp)
 				_ = p.ReadBody(ack)
 
-				logger.Warnf("%s receive Ack [%d]", cli.ServiceID(), ack.GetMessageId())
+				fmt.Printf("%s receive Ack [%d]\n", cli.ServiceID(), ack.GetMessageId())
 			} else if p.Flag == pkt.Flag_Push {
 				var push = new(pkt.MessagePush)
 				_ = p.ReadBody(push)
 
-				logger.Warnf("%s receive message [%d] %s", cli.ServiceID(), push.GetMessageId(), push.Body)
+				fmt.Printf("%s receive message [%d] %s\n", cli.ServiceID(), push.GetMessageId(), push.Body)
 			}
 
 		}

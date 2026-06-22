@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
+	"os"
 
 	"github.com/klintcheng/kim/examples/echo"
 	"github.com/klintcheng/kim/examples/kimbench"
 	"github.com/klintcheng/kim/examples/mock"
-	"github.com/klintcheng/kim/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -32,6 +33,7 @@ func main() {
 	root.AddCommand(kimbench.NewBenchmarkCmd(ctx))
 
 	if err := root.Execute(); err != nil {
-		logger.WithError(err).Fatal("Could not run command")
+		fmt.Fprintf(os.Stderr, "Could not run command: %v\n", err)
+		os.Exit(1)
 	}
 }

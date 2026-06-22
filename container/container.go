@@ -52,7 +52,7 @@ type Container struct {
 	monitor    sync.Once
 }
 
-var log = logger.WithField("module", "container")
+var log = logger.CommonLogger.WithField("module", "container")
 
 // Default Container
 var c = &Container{
@@ -265,7 +265,7 @@ func connectToService(serviceName string) error {
 
 			_, err := buildClient(clients, service)
 			if err != nil {
-				logger.Warn(err)
+				log.Warn(err)
 			}
 		}
 	})
@@ -285,7 +285,7 @@ func connectToService(serviceName string) error {
 		setServiceState(service, StateAdult) // 新加的：安全设置状态
 		_, err := buildClient(clients, service)
 		if err != nil {
-			logger.Warn(err)
+			log.Warn(err)
 		}
 	}
 	return nil
@@ -388,7 +388,7 @@ func getBuildLock(serviceID string) *sync.Mutex {
 
 // Receive default listener
 func readLoop(cli kim.Client) error {
-	log := logger.WithFields(logger.Fields{
+	log := log.WithFields(logger.Fields{
 		"module": "container",
 		"func":   "readLoop",
 	})
@@ -406,7 +406,7 @@ func readLoop(cli kim.Client) error {
 		buf := bytes.NewBuffer(frame.GetPayload())
 
 		packet, err := pkt.MustReadLogicPkt(buf)
-		logger.Warn("网关接收到消息：", packet)
+		log.Warn("网关接收到消息：", packet)
 		if err != nil {
 			log.Info(err)
 			continue

@@ -7,11 +7,11 @@ import (
 
 	"github.com/kataras/iris/v12"
 	"github.com/klintcheng/kim"
+	"github.com/klintcheng/kim/logger"
 	"github.com/klintcheng/kim/naming"
 	"github.com/klintcheng/kim/services/router/conf"
 	"github.com/klintcheng/kim/services/router/ipregion"
 	"github.com/klintcheng/kim/wire"
-	"github.com/sirupsen/logrus"
 )
 
 const DefaultLocation = "中国"
@@ -72,7 +72,7 @@ func (r *RouterApi) Lookup(c iris.Context) {
 		domains[i] = h.GetMeta()["domain"]
 	}
 
-	logrus.WithFields(logrus.Fields{
+	logger.RouterLogger.WithFields(logger.Fields{
 		"country":  location,
 		"regionId": regionId,
 		"idc":      idc.ID,

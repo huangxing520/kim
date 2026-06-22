@@ -61,7 +61,7 @@ func (g *GroupHttp) Create(app string, req *rpc.CreateGroupReq) (*rpc.CreateGrou
 	}
 	var resp rpc.CreateGroupResp
 	_ = proto.Unmarshal(response.Body(), &resp)
-	logger.Debugf("GroupHttp.Create resp: %v", &resp)
+	logger.CometLogger.Debugf("GroupHttp.Create resp: %v", &resp)
 	return &resp, nil
 }
 
@@ -77,7 +77,7 @@ func (g *GroupHttp) Members(app string, req *rpc.GroupMembersReq) (*rpc.GroupMem
 	}
 	var resp rpc.GroupMembersResp
 	_ = proto.Unmarshal(response.Body(), &resp)
-	logger.Debugf("GroupHttp.Members resp: %v", &resp)
+	logger.CometLogger.Debugf("GroupHttp.Members resp: %v", &resp)
 	return &resp, nil
 }
 
@@ -101,6 +101,7 @@ func (g *GroupHttp) Quit(app string, req *rpc.QuitGroupReq) error {
 	if err != nil {
 		return err
 	}
+	
 	if response.StatusCode() != 200 {
 		return fmt.Errorf("GroupHttp.Quit response.StatusCode() = %d, want 200", response.StatusCode())
 	}
@@ -118,7 +119,7 @@ func (g *GroupHttp) Detail(app string, req *rpc.GetGroupReq) (*rpc.GetGroupResp,
 	}
 	var resp rpc.GetGroupResp
 	_ = proto.Unmarshal(response.Body(), &resp)
-	logger.Debugf("GroupHttp.Detail resp: %v", &resp)
+	logger.CometLogger.Debugf("GroupHttp.Detail resp: %v", &resp)
 	return &resp, nil
 }
 

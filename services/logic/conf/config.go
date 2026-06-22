@@ -14,7 +14,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/klintcheng/kim"
 	"github.com/klintcheng/kim/logger"
-	"github.com/sirupsen/logrus"
+	"github.com/klintcheng/kim/model"
 	"github.com/spf13/viper"
 )
 
@@ -32,7 +32,7 @@ type Config struct {
 	BaseDb        string
 	MessageDb     string
 	LogLevel      string `default:"INFO"`
-	Kafka         logger.KafkaSettings
+	Kafka         model.KafkaSettings
 }
 
 func (c Config) String() string {
@@ -48,7 +48,7 @@ func Init(file string) (*Config, error) {
 
 	var config Config
 	if err := viper.ReadInConfig(); err != nil {
-		logger.Warn(err)
+		logger.LogicLogger.Warn(err)
 	} else {
 		if err := viper.Unmarshal(&config); err != nil {
 			return nil, err
@@ -70,7 +70,7 @@ func Init(file string) (*Config, error) {
 	if config.PublicAddress == "" {
 		config.PublicAddress = kim.GetLocalIP()
 	}
-	logger.Info(config)
+	logger.LogicLogger.Info(config)
 	return &config, nil
 }
 
@@ -104,7 +104,7 @@ func InitFailoverRedis(masterName string, sentinelAddrs []string, password strin
 
 	_, err := redisdb.Ping().Result()
 	if err != nil {
-		logrus.Warn(err)
+		logger.LogicLogger.Warn(err)
 	}
 	return redisdb, nil
 }

@@ -62,7 +62,7 @@ func (m *MessageHttp) InsertUser(app string, req *rpc.InsertMessageReq) (*rpc.In
 	}
 	var resp rpc.InsertMessageResp
 	_ = proto.Unmarshal(response.Body(), &resp)
-	logger.Debugf("MessageHttp.InsertUser cost %v resp: %v", time.Since(t1), &resp)
+	logger.CometLogger.Debugf("MessageHttp.InsertUser cost %v resp: %v", time.Since(t1), &resp)
 	return &resp, nil
 }
 
@@ -79,7 +79,7 @@ func (m *MessageHttp) InsertGroup(app string, req *rpc.InsertMessageReq) (*rpc.I
 	}
 	var resp rpc.InsertMessageResp
 	_ = proto.Unmarshal(response.Body(), &resp)
-	logger.Debugf("MessageHttp.InsertGroup cost %v resp: %v", time.Since(t1), &resp)
+	logger.CometLogger.Debugf("MessageHttp.InsertGroup cost %v resp: %v", time.Since(t1), &resp)
 	return &resp, nil
 }
 

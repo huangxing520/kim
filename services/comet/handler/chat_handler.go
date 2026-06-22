@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/klintcheng/kim"
-	"github.com/klintcheng/kim/services/server/service"
+	"github.com/klintcheng/kim/services/comet/service"
 	"github.com/klintcheng/kim/wire/pkt"
 	"github.com/klintcheng/kim/wire/rpc"
 )

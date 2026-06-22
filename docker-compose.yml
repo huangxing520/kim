@@ -15,6 +15,7 @@ x-controller-common: &controller_common
     KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
     KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
     KAFKA_CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk  # 保持不变（可自行修改）
+    KAFKA_LOG_DIRS: /opt/kafka/data            # 指定数据目录到挂载路径，否则默认 /tmp/kafka-logs 不持久化
 
 x-broker-common: &broker_common
   image: docker.io/apache/kafka:latest
@@ -30,7 +31,13 @@ x-broker-common: &broker_common
     KAFKA_CONTROLLER_QUORUM_VOTERS: 1@controller-1:9093,2@controller-2:9093,3@controller-3:9093
     KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
     KAFKA_CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
-
+    KAFKA_LOG_DIRS: /opt/kafka/data            # 指定数据目录到挂载路径，否则默认 /tmp/kafka-logs 不持久化
+    # 自动创建 topic 时的默认参数
+    KAFKA_NUM_PARTITIONS: 3                    # 默认分区数
+    KAFKA_DEFAULT_REPLICATION_FACTOR: 3        # 默认副本数（=broker 数）
+    KAFKA_MIN_INSYNC_REPLICAS: 2               # 最少同步副本数（配合 acks=all 使用）
+    KAFKA_LOG_RETENTION_BYTES: 10737418240     # 每个分区最大日志大小 10GB
+    KAFKA_LOG_RETENTION_HOURS: 168          # 7天
 services:
   # ========== Controller 节点（仅元数据） ==========
   controller-1:
@@ -136,6 +143,22 @@ services:
     environment:
       CONSUL_BIND_INTERFACE: eth0
       CONSUL_ALLOW_PRIVILEGED_PORTS: 53
+  kafdrop:
+    image: docker.io/obsidiandynamics/kafdrop:latest
+    container_name: kim_kafdrop
+    restart: always
+    networks:
+      - kimnet
+    ports:
+      - "19000:9000"   # Kafdrop UI 端口 (host:19000→container:9000)
+    environment:
+      KAFKA_BROKERCONNECT: broker-1:19092,broker-2:19092,broker-3:19092
+      JVM_OPTS: "-Xms64M -Xmx256M"
+      SERVER_SERVLET_CONTEXTPATH: "/"
+    depends_on:
+      - broker-1
+      - broker-2
+      - broker-3
  
 #docker compose -f docker-compose.yml down
 #rm -rf ~/data/controller-* ~/data/broker-*

@@ -5,12 +5,11 @@ import (
 
 	"github.com/bwmarrin/snowflake"
 	"github.com/kataras/iris/v12"
-	"github.com/klintcheng/kim/services/service/database"
+	"github.com/klintcheng/kim/services/logic/database"
 	"github.com/klintcheng/kim/wire/rpc"
 	"gorm.io/gorm"
 )
 
-// var log = logger.WithField("module", "service.handler")
 
 func (h *ServiceHandler) GroupCreate(c iris.Context) {
 	app := c.Params().Get("app")

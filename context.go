@@ -60,7 +60,7 @@ func (c *ContextImpl) Next() {
 	f := c.handlers[c.index]
 	c.index++
 	if f == nil {
-		logger.Warn("arrived unknown HandlerFunc")
+		logger.CommonLogger.Warn("arrived unknown HandlerFunc")
 		return
 	}
 	f(c)
@@ -77,11 +77,11 @@ func (c *ContextImpl) Resp(status pkt.Status, body proto.Message) error {
 	packet.Status = status
 	packet.WriteBody(body)
 	packet.Flag = pkt.Flag_Response
-	logger.Debugf("<-- Resp to %s command:%s  status: %v body: %s", c.Session().GetAccount(), &c.request.Header, status, body)
+	logger.CommonLogger.Debugf("<-- Resp to %s command:%s  status: %v body: %s", c.Session().GetAccount(), &c.request.Header, status, body)
 
 	err := c.Push(c.Session().GetGateId(), []string{c.Session().GetChannelId()}, packet)
 	if err != nil {
-		logger.Error(err)
+		logger.CommonLogger.Error(err)
 	}
 	return err
 }
@@ -97,7 +97,7 @@ func (c *ContextImpl) Dispatch(body proto.Message, recvs ...*Location) error {
 	packet.Flag = pkt.Flag_Push
 	packet.WriteBody(body)
 
-	logger.Debugf("<-- Dispatch to %d users command:%s", len(recvs), &c.request.Header)
+	logger.CommonLogger.Debugf("<-- Dispatch to %d users command:%s", len(recvs), &c.request.Header)
 
 	// the receivers group by the destination of gateway
 	group := make(map[string][]string)
@@ -122,7 +122,7 @@ func (c *ContextImpl) Dispatch(body proto.Message, recvs ...*Location) error {
 	for gateway, ids := range group {
 		err := c.Push(gateway, ids, packet)
 		if err != nil {
-			logger.Error(err)
+			logger.CommonLogger.Error(err)
 			if firstErr == nil { // 新加的：仅记录第一个错误，不中断后续 gateway 推送
 				firstErr = err
 			}

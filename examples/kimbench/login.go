@@ -8,7 +8,6 @@ import (
 
 	"github.com/klintcheng/kim"
 	"github.com/klintcheng/kim/examples/dialer"
-	"github.com/klintcheng/kim/logger"
 	"github.com/klintcheng/kim/report"
 	"github.com/panjf2000/ants/v2"
 )
@@ -34,7 +33,7 @@ func login(wsurl, appSecret string, threads int, count int, keep time.Duration) 
 				StatusCode: 0,
 			})
 			if err != nil {
-				logger.Error(err)
+				fmt.Println(err)
 			} else {
 				clis[idx] = cli
 			}
@@ -45,12 +44,12 @@ func login(wsurl, appSecret string, threads int, count int, keep time.Duration) 
 
 	r.Finalize(time.Since(t1))
 
-	logger.Infof("keep login for %v", keep)
+	fmt.Printf("keep login for %v\n", keep)
 	time.Sleep(keep)
 
 	for _, cli := range clis {
 		cli.Close()
 	}
-	logger.Infoln("shutdown..")
+	fmt.Println("shutdown..")
 	return nil
 }

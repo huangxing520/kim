@@ -41,7 +41,7 @@ func NewChannel(id string, meta Meta, conn Conn, gpool *ants.Pool) Channel {
 	go func() {
 		err := ch.writeloop()
 		if err != nil {
-			logger.WithFields(logger.Fields{
+			logger.CommonLogger.WithFields(logger.Fields{
 				"module": "ChannelImpl",
 				"id":     id,
 			}).Info(err)
@@ -51,7 +51,7 @@ func NewChannel(id string, meta Meta, conn Conn, gpool *ants.Pool) Channel {
 }
 
 func (ch *ChannelImpl) writeloop() error {
-	log := logger.WithFields(logger.Fields{
+	log := logger.CommonLogger.WithFields(logger.Fields{
 		"module": "ChannelImpl",
 		"func":   "writeloop",
 		"id":     ch.id,
@@ -131,7 +131,7 @@ func (ch *ChannelImpl) Readloop(lst MessageListener) error {
 	}
 
 	// Create a new logger object with some fields filled out.
-	log := logger.WithFields(logger.Fields{
+	log := logger.CommonLogger.WithFields(logger.Fields{
 		"struct": "ChannelImpl",
 		"func":   "Readloop",
 		"id":     ch.id,

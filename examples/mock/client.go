@@ -9,7 +9,6 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/klintcheng/kim"
-	"github.com/klintcheng/kim/logger"
 	"github.com/klintcheng/kim/tcp"
 	"github.com/klintcheng/kim/websocket"
 )
@@ -34,7 +33,7 @@ func (c *ClientDemo) Start(userID, protocol, addr string) {
 	// step2: 建立连接
 	err := cli.Connect(addr)
 	if err != nil {
-		logger.Error(err)
+		fmt.Println(err)
 		return
 	}
 	count := 10
@@ -43,7 +42,7 @@ func (c *ClientDemo) Start(userID, protocol, addr string) {
 		for i := 0; i < count; i++ {
 			err := cli.Send([]byte(fmt.Sprintf("hello_%d", i)))
 			if err != nil {
-				logger.Error(err)
+				fmt.Println(err)
 				return
 			}
 			time.Sleep(time.Millisecond * 10)
@@ -55,14 +54,14 @@ func (c *ClientDemo) Start(userID, protocol, addr string) {
 	for {
 		frame, err := cli.Read()
 		if err != nil {
-			logger.Info(err)
+			fmt.Println(err)
 			break
 		}
 		if frame.GetOpCode() != kim.OpBinary {
 			continue
 		}
 		recv++
-		logger.Infof("%s receive message [%s]", cli.ServiceID(), frame.GetPayload())
+		fmt.Printf("%s receive message [%s]\n", cli.ServiceID(), frame.GetPayload())
 		if recv == count { // 接收完消息
 			break
 		}
@@ -77,7 +76,7 @@ type WebsocketDialer struct {
 
 // DialAndHandshake DialAndHandshake
 func (d *WebsocketDialer) DialAndHandshake(ctx kim.DialerContext) (net.Conn, error) {
-	logger.Info("start ws dial: ", ctx.Address)
+	fmt.Println("start ws dial: ", ctx.Address)
 	// 1 调用ws.Dial拨号
 	ctxWithTimeout, cancel := context.WithTimeout(context.TODO(), ctx.Timeout)
 	defer cancel()
@@ -101,7 +100,7 @@ type TCPDialer struct {
 
 // DialAndHandshake DialAndHandshake
 func (d *TCPDialer) DialAndHandshake(ctx kim.DialerContext) (net.Conn, error) {
-	logger.Info("start tcp dial: ", ctx.Address)
+	fmt.Println("start tcp dial: ", ctx.Address)
 	// 1 调用net.Dial拨号
 	conn, err := net.DialTimeout("tcp", ctx.Address, ctx.Timeout)
 	if err != nil {

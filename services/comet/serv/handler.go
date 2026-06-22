@@ -13,10 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var log = logger.WithFields(logger.Fields{
-	"service": wire.SNChat,
-	"pkg":     "serv",
-})
+
 
 // ServHandler ServHandler
 type ServHandler struct {
@@ -43,7 +40,10 @@ func (h *ServHandler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.
 
 	var req pkt.InnerHandshakeReq
 	_ = proto.Unmarshal(frame.GetPayload(), &req)
-	log.Info("Accept -- ", req.ServiceId)
+	 logger.CometLogger.WithFields(logger.Fields{
+	"service": wire.SNChat,
+	"pkg":     "serv",
+}).Info("Accept -- ", req.ServiceId)
 
 	return req.ServiceId, nil, nil
 }
@@ -53,7 +53,10 @@ func (h *ServHandler) Receive(ag kim.Agent, payload []byte) {
 	buf := bytes.NewBuffer(payload)
 	packet, err := pkt.MustReadLogicPkt(buf)
 	if err != nil {
-		log.Error(err)
+		 logger.CometLogger.WithFields(logger.Fields{
+	"service": wire.SNChat,
+	"pkg":     "serv",
+}).Error(err)
 		return
 	}
 	var session *pkt.Session
@@ -75,10 +78,16 @@ func (h *ServHandler) Receive(ag kim.Agent, payload []byte) {
 			return
 		}
 	}
-	log.Debugf("recv a message from %s  %s", session, &packet.Header)
+	 logger.CometLogger.WithFields(logger.Fields{
+	"service": wire.SNChat,
+	"pkg":     "serv",
+}).Debugf("recv a message from %s  %s", session, &packet.Header)
 	err = h.r.Serve(packet, h.dispatcher, h.cache, session)
 	if err != nil {
-		log.Warn(err)
+		 logger.CometLogger.WithFields(logger.Fields{
+	"service": wire.SNChat,
+	"pkg":     "serv",
+}).Warn(err)
 	}
 
 }
@@ -102,6 +111,6 @@ func (d *ServerDispatcher) Push(gateway string, channels []string, p *pkt.LogicP
 
 // Disconnect default listener
 func (h *ServHandler) Disconnect(id string) error {
-	logger.Warnf("close event of %s", id)
+	logger.CometLogger.Warnf("close event of %s", id)
 	return nil
 }

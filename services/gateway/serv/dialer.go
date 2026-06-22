@@ -30,7 +30,7 @@ func (d *TcpDialer) DialAndHandshake(ctx kim.DialerContext) (net.Conn, error) {
 	req := &pkt.InnerHandshakeReq{
 		ServiceId: d.ServiceId,
 	}
-	logger.Infof("send req %v", req)
+	logger.GatewayLogger.WithField("func", "DialAndHandshake").Infof("send req %v", req)
 	// 2. 把自己的ServiceId发送给对方
 	bts, _ := proto.Marshal(req)
 	err = tcp.WriteFrame(conn, kim.OpBinary, bts)

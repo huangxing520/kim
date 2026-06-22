@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v7"
-	"github.com/sirupsen/logrus"
+	"github.com/klintcheng/kim/logger"
 )
 
 // KeyMessageAckIndex return a redis key of the read index
@@ -45,7 +45,7 @@ func InitFailoverRedis(masterName string, sentinelAddrs []string, password strin
 
 	_, err := redisdb.Ping().Result()
 	if err != nil {
-		logrus.Warn(err)
+		logger.LogicLogger.Warn(err)
 	}
 	return redisdb, nil
 }

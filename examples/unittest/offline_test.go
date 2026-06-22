@@ -8,7 +8,6 @@ import (
 
 	"github.com/klintcheng/kim"
 	"github.com/klintcheng/kim/examples/dialer"
-	"github.com/klintcheng/kim/logger"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/pkt"
 	"github.com/stretchr/testify/assert"
@@ -32,7 +31,7 @@ func Test_offline(t *testing.T) {
 		})
 		err := cli.Send(pkt.Marshal(p))
 		if err != nil {
-			logger.Error(err)
+			fmt.Println(err)
 			return
 		}
 		// wait ack

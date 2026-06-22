@@ -82,7 +82,7 @@ func NewServer(listen string, service ServiceRegistration, upgrader Upgrader, op
 
 // Start server
 func (s *DefaultServer) Start() error {
-	log := logger.WithFields(logger.Fields{
+	log := logger.CommonLogger.WithFields(logger.Fields{
 		"module": s.Name(),
 		"listen": s.listen,
 		"id":     s.ServiceID(),
@@ -139,7 +139,7 @@ func (s *DefaultServer) connHandler(rawconn net.Conn, gpool *ants.Pool) {
 	}()
 	conn, err := s.Upgrade(rawconn, rd, wr)
 	if err != nil {
-		logger.Errorf("Upgrade error: %v", err)
+		logger.CommonLogger.Errorf("Upgrade error: %v", err)
 		rawconn.Close()
 		return
 	}
@@ -166,14 +166,14 @@ func (s *DefaultServer) connHandler(rawconn net.Conn, gpool *ants.Pool) {
 	// 【修复#1】去掉原 logger.Infof("现在的channel %s", s.ChannelMap.All()) 调用
 	// 原代码每次 Accept 都会调用 All() 遍历全部 channel，万人在线时是 O(N) 热路径开销
 	// 新加的：仅记录当前新增的 channel ID，避免遍历整个 ChannelMap
-	logger.Infof("accept channel - ID: %s RemoteAddr: %s", channel.ID(), channel.RemoteAddr())
+	logger.CommonLogger.Infof("accept channel - ID: %s RemoteAddr: %s", channel.ID(), channel.RemoteAddr())
 
 	gaugeWithLabel := channelTotalGauge.WithLabelValues(s.ServiceID(), s.ServiceName())
 	gaugeWithLabel.Inc()
 	defer gaugeWithLabel.Dec()
 	err = channel.Readloop(s.MessageListener)
 	if err != nil {
-		logger.Info("某一个连接断开了", err)
+		logger.CommonLogger.Infof("某一个连接断开了: %v", err)
 	}
 	s.Remove(channel.ID())
 	_ = s.Disconnect(channel.ID())
@@ -182,7 +182,7 @@ func (s *DefaultServer) connHandler(rawconn net.Conn, gpool *ants.Pool) {
 
 // Shutdown Shutdown
 func (s *DefaultServer) Shutdown(ctx context.Context) error {
-	log := logger.WithFields(logger.Fields{
+	log := logger.CommonLogger.WithFields(logger.Fields{
 		"module": s.Name(),
 		"id":     s.ServiceID(),
 	})
@@ -218,7 +218,7 @@ func (s *DefaultServer) Push(id string, data []byte) error {
 	// 原代码每次 Push 都会调用 All() 遍历全部 channel，是高频热路径上的 O(N) 开销
 	// 新加的：仅在未找到时记录调试日志，避免成功路径上的额外开销
 	if !ok {
-		logger.Debugf("channel not found in push, id: %s", id)
+		logger.CommonLogger.Debugf("channel not found in push, id: %s", id)
 		return errors.New("channel no found")
 	}
 	return ch.Push(data)

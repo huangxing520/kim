@@ -2,9 +2,10 @@ package conf
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/kelseyhightower/envconfig"
-	"github.com/klintcheng/kim/logger"
+	"github.com/klintcheng/kim/model"
 	"github.com/spf13/viper"
 )
 
@@ -13,7 +14,7 @@ type Config struct {
 	Listen    string `default:":8100"`
 	ConsulURL string `default:"localhost:8500"`
 	LogLevel  string `default:"INFO"`
-	Kafka     logger.KafkaSettings
+	Kafka     model.KafkaSettings
 }
 
 func (c Config) String() string {
@@ -35,7 +36,7 @@ func Init(file string) (*Config, error) {
 	}
 
 	if err := viper.ReadInConfig(); err != nil {
-		logger.Warn(err)
+		fmt.Println(err)
 	} else {
 		if err := viper.Unmarshal(&config); err != nil {
 			return nil, err

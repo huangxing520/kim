@@ -7,7 +7,7 @@ import (
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/klintcheng/kim"
-	"github.com/klintcheng/kim/logger"
+	"github.com/klintcheng/kim/model"
 	"github.com/spf13/viper"
 )
 
@@ -26,7 +26,7 @@ type Config struct {
 	LogLevel        string `default:"DEBUG"`
 	MessageGPool    int    `default:"10000"`
 	ConnectionGPool int    `default:"15000"`
-	Kafka           logger.KafkaSettings
+	Kafka           model.KafkaSettings
 }
 
 func (c Config) String() string {
@@ -48,7 +48,7 @@ func Init(file string) (*Config, error) {
 	}
 
 	if err := viper.ReadInConfig(); err != nil {
-		logger.Warn(err)
+		fmt.Println(err)
 	} else {
 		if err := viper.Unmarshal(&config); err != nil {
 			return nil, err
@@ -62,6 +62,6 @@ func Init(file string) (*Config, error) {
 	if config.PublicAddress == "" {
 		config.PublicAddress = kim.GetLocalIP()
 	}
-	logger.Info(config)
+	fmt.Println(config)
 	return &config, nil
 }

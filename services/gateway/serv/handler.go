@@ -19,10 +19,7 @@ const (
 	MetaKeyAccount = "account"
 )
 
-var log = logger.WithFields(logger.Fields{
-	"service": "gateway",
-	"pkg":     "serv",
-})
+
 
 // Handler Handler
 type Handler struct {
@@ -42,7 +39,10 @@ func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta
 	buf := bytes.NewBuffer(frame.GetPayload())
 	req, err := pkt.MustReadLogicPkt(buf)
 	if err != nil {
-		log.Error(err)
+		 logger.GatewayLogger.WithFields(logger.Fields{
+	"service": "gateway",
+	"pkg":     "serv",
+}).Error(err)
 		return "", nil, err
 	}
 	// 2. 必须是登录包
@@ -80,7 +80,10 @@ func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta
 	}
 	// 6. 生成一个全局唯一的ChannelID
 	id := generateChannelID(h.ServiceID, tk.Account)
-	log.Infof("accept %v channel:%s", tk, id)
+	 logger.GatewayLogger.WithFields(logger.Fields{
+	"service": "gateway",
+	"pkg":     "serv",
+}).Infof("accept %v channel:%s", tk, id)
 
 	req.ChannelId = id
 	req.WriteBody(&pkt.Session{
@@ -98,7 +101,10 @@ func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta
 	// 7. 把login.转发给Login服务
 	err = container.Forward(wire.SNLogin, req)
 	if err != nil {
-		log.Errorf("container.Forward :%v", err)
+		 logger.GatewayLogger.WithFields(logger.Fields{
+	"service": "gateway",
+	"pkg":     "serv",
+}).Errorf("container.Forward :%v", err)
 		return "", nil, err
 	}
 	return id, kim.Meta{
@@ -112,7 +118,10 @@ func (h *Handler) Receive(ag kim.Agent, payload []byte) {
 	buf := bytes.NewBuffer(payload)
 	packet, err := pkt.Read(buf)
 	if err != nil {
-		log.Error(err)
+		 logger.GatewayLogger.WithFields(logger.Fields{
+	"service": "gateway",
+	"pkg":     "serv",
+}).Error(err)
 		return
 	}
 	if basicPkt, ok := packet.(*pkt.BasicPkt); ok {
@@ -135,7 +144,7 @@ func (h *Handler) Receive(ag kim.Agent, payload []byte) {
 
 		err = container.Forward(logicPkt.ServiceName(), logicPkt)
 		if err != nil {
-			logger.WithFields(logger.Fields{
+			logger.GatewayLogger.WithFields(logger.Fields{
 				"module": "handler",
 				"id":     ag.ID(),
 				"cmd":    logicPkt.Command,
@@ -148,12 +157,15 @@ func (h *Handler) Receive(ag kim.Agent, payload []byte) {
 
 // Disconnect default listener
 func (h *Handler) Disconnect(id string) error {
-	log.Infof("disconnect %s", id)
+	 logger.GatewayLogger.WithFields(logger.Fields{
+	"service": "gateway",
+	"pkg":     "serv",
+}).Infof("disconnect %s", id)
 
 	logout := pkt.New(wire.CommandLoginSignOut, pkt.WithChannel(id))
 	err := container.Forward(wire.SNLogin, logout)
 	if err != nil {
-		logger.WithFields(logger.Fields{
+		logger.GatewayLogger.WithFields(logger.Fields{
 			"module": "handler",
 			"id":     id,
 		}).Error(err)

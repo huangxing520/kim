@@ -3,7 +3,6 @@ package conf
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -11,7 +10,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/klintcheng/kim"
 	"github.com/klintcheng/kim/logger"
-	"github.com/sirupsen/logrus"
+	"github.com/klintcheng/kim/model"
 	"github.com/spf13/viper"
 )
 
@@ -33,7 +32,7 @@ type Config struct {
 	LogLevel        string `default:"DEBUG"`
 	MessageGPool    int    `default:"5000"`
 	ConnectionGPool int    `default:"500"`
-	Kafka           logger.KafkaSettings
+	Kafka           model.KafkaSettings
 }
 
 func (c Config) String() string {
@@ -54,7 +53,7 @@ func Init(file string) (*Config, error) {
 	}
 
 	if err := viper.ReadInConfig(); err != nil {
-		logger.Warn(err)
+		fmt.Println(err)
 	} else {
 		if err := viper.Unmarshal(&config); err != nil {
 			return nil, err
@@ -68,7 +67,7 @@ func Init(file string) (*Config, error) {
 	if config.PublicAddress == "" {
 		config.PublicAddress = kim.GetLocalIP()
 	}
-	logger.Info(config)
+	fmt.Println(config)
 	return &config, nil
 }
 
@@ -83,7 +82,7 @@ func InitRedis(addr string, pass string) (*redis.Client, error) {
 
 	_, err := redisdb.Ping().Result()
 	if err != nil {
-		log.Println(err)
+		fmt.Println(err)
 		return nil, err
 	}
 	return redisdb, nil
@@ -102,7 +101,7 @@ func InitFailoverRedis(masterName string, sentinelAddrs []string, password strin
 
 	_, err := redisdb.Ping().Result()
 	if err != nil {
-		logrus.Warn(err)
+		logger.CometLogger.Warn(err)
 	}
 	return redisdb, nil
 }

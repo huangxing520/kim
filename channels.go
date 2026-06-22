@@ -29,7 +29,7 @@ func NewChannels(num int) ChannelMap {
 // Add addChannel
 func (ch *ChannelsImpl) Add(channel Channel) {
 	if channel.ID() == "" {
-		logger.WithFields(logger.Fields{
+		logger.CommonLogger.WithFields(logger.Fields{
 			"module": "ChannelsImpl",
 		}).Error("channel id is required")
 		return
@@ -46,7 +46,7 @@ func (ch *ChannelsImpl) Remove(id string) {
 // Get Get
 func (ch *ChannelsImpl) Get(id string) (Channel, bool) {
 	if id == "" {
-		logger.WithFields(logger.Fields{
+		logger.CommonLogger.WithFields(logger.Fields{
 			"module": "ChannelsImpl",
 		}).Error("channel id is required")
 		return nil, false

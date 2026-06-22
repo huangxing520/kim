@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-redis/redis/v7"
 	"github.com/kataras/iris/v12"
-	"github.com/klintcheng/kim/services/service/database"
+	"github.com/klintcheng/kim/services/logic/database"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/rpc"
 	"gorm.io/gorm"

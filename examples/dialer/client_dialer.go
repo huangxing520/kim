@@ -10,7 +10,6 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/klintcheng/kim"
-	"github.com/klintcheng/kim/logger"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/pkt"
 	"github.com/klintcheng/kim/wire/token"
@@ -66,6 +65,6 @@ func (d *ClientDialer) DialAndHandshake(ctx kim.DialerContext) (net.Conn, error)
 	var resp = new(pkt.LoginResp)
 	_ = ack.ReadBody(resp)
 
-	logger.Debug("logined ", resp.GetChannelId())
+	fmt.Println("logined ", resp.GetChannelId())
 	return conn, nil
 }

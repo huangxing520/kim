@@ -2,12 +2,12 @@ package mock
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"time"
 
 	"github.com/klintcheng/kim"
-	"github.com/klintcheng/kim/logger"
 	"github.com/klintcheng/kim/naming"
 	"github.com/klintcheng/kim/tcp"
 	"github.com/klintcheng/kim/websocket"
@@ -61,18 +61,18 @@ func (h *ServerHandler) Accept(conn kim.Conn, timeout time.Duration) (string, ki
 	if userID == "" {
 		return "", nil, errors.New("user id is invalid")
 	}
-	logger.Infof("logined %s", userID)
+	fmt.Printf("logined %s\n", userID)
 	return userID, nil, nil
 }
 
 // Receive default listener
 func (h *ServerHandler) Receive(ag kim.Agent, payload []byte) {
-	logger.Infof("srv received %s", string(payload))
+	fmt.Printf("srv received %s\n", string(payload))
 	_ = ag.Push([]byte("ok"))
 }
 
 // Disconnect default listener
 func (h *ServerHandler) Disconnect(id string) error {
-	logger.Infof("disconnect %s", id)
+	fmt.Printf("disconnect %s\n", id)
 	return nil
 }

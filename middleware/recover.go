@@ -22,12 +22,11 @@ func Recover() kim.HandlerFunc {
 					}
 					callers = append(callers, fmt.Sprintf("%s:%d", file, line))
 				}
-				logger.WithFields(logger.Fields{
-					"ChannelId": ctx.Header().ChannelId,
-					"Command":   ctx.Header().Command,
-					"Seq":       ctx.Header().Sequence,
-				}).Error(err, strings.Join(callers, "\n"))
-
+			
+			logger.CometLogger.Errorw(fmt.Sprintf("%v", err),"ChannelId",ctx.Header().ChannelId,
+					"Command",ctx.Header().Command,
+					"Seq",ctx.Header().Sequence,"Caller",strings.Join(callers, "\n"))
+				
 				_ = ctx.Resp(pkt.Status_SystemException, &pkt.ErrorResp{Message: "SystemException"})
 			}
 		}()

@@ -1,4 +1,4 @@
-package service
+package logic
 
 import (
 	"context"
@@ -11,9 +11,9 @@ import (
 	"github.com/klintcheng/kim/logger"
 	"github.com/klintcheng/kim/naming"
 	"github.com/klintcheng/kim/naming/consul"
-	"github.com/klintcheng/kim/services/service/conf"
-	"github.com/klintcheng/kim/services/service/database"
-	"github.com/klintcheng/kim/services/service/handler"
+	"github.com/klintcheng/kim/services/logic/conf"
+	"github.com/klintcheng/kim/services/logic/database"
+	"github.com/klintcheng/kim/services/logic/handler"
 	"github.com/klintcheng/kim/wire"
 	"github.com/spf13/cobra"
 )
@@ -34,7 +34,7 @@ func NewServerStartCmd(ctx context.Context, version string) *cobra.Command {
 			return RunServerStart(ctx, opts, version)
 		},
 	}
-	cmd.PersistentFlags().StringVarP(&opts.config, "config", "c", "./service/conf.yaml", "Config file")
+	cmd.PersistentFlags().StringVarP(&opts.config, "config", "c", "./logic/conf.yaml", "Config file")
 	return cmd
 }
 
@@ -44,14 +44,17 @@ func RunServerStart(ctx context.Context, opts *ServerStartOptions, version strin
 	if err != nil {
 		return err
 	}
-	if err := logger.Init(logger.Settings{
-		Level:    config.LogLevel,
-		Filename: "./data/royal.log",
-		Kafka:    config.Kafka,
-	}); err != nil {
+	log, err := logger.Init(logger.Settings{
+		Level:       config.LogLevel,
+		Filename:    "./data/royal.log",
+		ServiceName: "royal",
+		Kafka:       config.Kafka,
+	})
+	if err != nil {
 		return err
 	}
-	defer logger.Close()
+	logger.LogicLogger = log.Sugar()
+	defer log.Close()
 
 	// database.Init
 	var (

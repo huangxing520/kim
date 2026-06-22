@@ -30,7 +30,7 @@ func NewClients(num int) ClientMap {
 // Add addChannel
 func (ch *ClientsImpl) Add(client kim.Client) {
 	if client.ServiceID() == "" {
-		logger.WithFields(logger.Fields{
+		logger.CommonLogger.WithFields(logger.Fields{
 			"module": "ClientsImpl",
 		}).Error("client id is required")
 	}
@@ -45,7 +45,7 @@ func (ch *ClientsImpl) Remove(id string) {
 // Get Get
 func (ch *ClientsImpl) Get(id string) (kim.Client, bool) {
 	if id == "" {
-		logger.WithFields(logger.Fields{
+		logger.CommonLogger.WithFields(logger.Fields{
 			"module": "ClientsImpl",
 		}).Error("client id is required")
 	}

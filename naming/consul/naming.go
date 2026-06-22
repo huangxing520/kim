@@ -68,7 +68,7 @@ func (n *Naming) load(name string, waitIndex uint64, tags ...string) ([]kim.Serv
 	services := make([]kim.ServiceRegistration, 0, len(catalogServices))
 	for _, s := range catalogServices {
 		if s.Checks.AggregatedStatus() != api.HealthPassing {
-			logger.Debugf("load service: id:%s name:%s %s:%d Status:%s", s.ServiceID, s.ServiceName, s.ServiceAddress, s.ServicePort, s.Checks.AggregatedStatus())
+			logger.CommonLogger.Debugf("load service: id:%s name:%s %s:%d Status:%s", s.ServiceID, s.ServiceName, s.ServiceAddress, s.ServicePort, s.Checks.AggregatedStatus())
 			continue
 		}
 		services = append(services, &naming.DefaultService{
@@ -81,7 +81,7 @@ func (n *Naming) load(name string, waitIndex uint64, tags ...string) ([]kim.Serv
 			Meta:     s.ServiceMeta,
 		})
 	}
-	logger.Debugf("load service: %v, meta:%v", services, meta)
+	logger.CommonLogger.Debugf("load service: %v, meta:%v", services, meta)
 	return services, meta, nil
 }
 
@@ -153,13 +153,13 @@ func (n *Naming) watch(wh *Watch) {
 	var doWatch = func(service string, callback func([]kim.ServiceRegistration)) {
 		services, meta, err := n.load(service, wh.WaitIndex) // <-- blocking until services has changed
 		if err != nil {
-			logger.Warn(err)
+			logger.CommonLogger.Warn(err)
 			return
 		}
 		select {
 		case <-wh.Quit:
 			stopped = true
-			logger.Infof("watch %s stopped", wh.Service)
+			logger.CommonLogger.Infof("watch %s stopped", wh.Service)
 			return
 		default:
 		}

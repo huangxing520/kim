@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 
-	"github.com/sirupsen/logrus"
+	"github.com/klintcheng/kim/logger"
 )
 
 type Zone struct {
@@ -59,6 +59,6 @@ func ReadRoute(path string) (*Route, error) {
 	for _, wl := range conf.Whitelist {
 		rt.Whitelist[wl.Key] = wl.Value
 	}
-	logrus.Infoln(rt)
+	logger.RouterLogger.Infoln(rt)
 	return &rt, nil
 }

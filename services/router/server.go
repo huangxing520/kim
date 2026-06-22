@@ -10,7 +10,6 @@ import (
 	"github.com/klintcheng/kim/services/router/apis"
 	"github.com/klintcheng/kim/services/router/conf"
 	"github.com/klintcheng/kim/services/router/ipregion"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -42,25 +41,28 @@ func RunServerStart(ctx context.Context, opts *ServerStartOptions, version strin
 	if err != nil {
 		return err
 	}
-	if err := logger.Init(logger.Settings{
-		Level:    "info",
-		Filename: "./data/router.log",
-		Kafka:    config.Kafka,
-	}); err != nil {
+	log, err := logger.Init(logger.Settings{
+		Level:       "info",
+		Filename:    "./data/router.log",
+		ServiceName: "router",
+		Kafka:       config.Kafka,
+	})
+	if err != nil {
 		return err
 	}
-	defer logger.Close()
-
+	logger.RouterLogger = log.Sugar()
+	defer log.Close()
+	logger.RouterLogger.Infow("ahah", "key", "value")
 	mappings, err := conf.LoadMapping(path.Join(opts.data, "mapping.json"))
 	if err != nil {
 		return err
 	}
-	logrus.Infof("load mappings - %v", mappings)
+	logger.RouterLogger.Infof("load mappings - %v", mappings)
 	regions, err := conf.LoadRegions(path.Join(opts.data, "regions.json"))
 	if err != nil {
 		return err
 	}
-	logrus.Infof("load regions - %v", regions)
+	logger.RouterLogger.Infof("load regions - %v", regions)
 
 	region, err := ipregion.NewIp2region(path.Join(opts.data, "ip2region.db"))
 	if err != nil {

@@ -3,7 +3,7 @@ package handler
 import (
 	"fmt"
 	"github.com/kataras/iris/v12"
-	"github.com/klintcheng/kim/services/service/database"
+	"github.com/klintcheng/kim/services/logic/database"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/rpc"
 	"github.com/klintcheng/kim/wire/token"

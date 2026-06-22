@@ -27,7 +27,6 @@ type ServerStartOptions struct {
 	protocol string
 	route    string
 }
-
 // NewServerStartCmd creates a new http server command
 func NewServerStartCmd(ctx context.Context, version string) *cobra.Command {
 	opts := &ServerStartOptions{}
@@ -51,14 +50,18 @@ func RunServerStart(ctx context.Context, opts *ServerStartOptions, version strin
 	if err != nil {
 		return err
 	}
-	if err := logger.Init(logger.Settings{
-		Level:    config.LogLevel,
-		Filename: "./data/gateway.log",
-		Kafka:    config.Kafka,
-	}); err != nil {
+	log, err := logger.Init(logger.Settings{
+		Level:       config.LogLevel,
+		Filename:    "./data/gateway.log",
+		ServiceName: "gateway",
+		Kafka:       config.Kafka,
+	}); 
+	if err != nil {
 		return err
 	}
-	defer logger.Close()
+	logger.GatewayLogger = log.Sugar();
+
+	defer log.Close()
 
 	handler := &serv.Handler{
 		ServiceID: config.ServiceID,
