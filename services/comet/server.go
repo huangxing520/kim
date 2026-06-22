@@ -33,13 +33,13 @@ func NewServerStartCmd(ctx context.Context, version string) *cobra.Command {
 	opts := &ServerStartOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "server",
+		Use:   "comet",
 		Short: "Start a server",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return RunServerStart(ctx, opts, version)
 		},
 	}
-	cmd.PersistentFlags().StringVarP(&opts.config, "config", "c", "./comet/conf.yaml", "Config file")
+	cmd.PersistentFlags().StringVarP(&opts.config, "config", "c", "services/comet/conf.yaml", "Config file")
 	cmd.PersistentFlags().StringVarP(&opts.serviceName, "serviceName", "s", "chat", "defined a service name,option is login or chat")
 	return cmd
 }
@@ -52,8 +52,8 @@ func RunServerStart(ctx context.Context, opts *ServerStartOptions, version strin
 	}
 	log, err := logger.Init(logger.Settings{
 		Level:       config.LogLevel,
-		Filename:    "./data/server.log",
-		ServiceName: "server",
+		Filename:    "./data/comet.log",
+		ServiceName: opts.serviceName,
 		Kafka:       config.Kafka,
 	})
 	if err != nil {

@@ -3,6 +3,7 @@ package conf
 import (
 	"encoding/json"
 	"io/ioutil"
+	
 
 	"github.com/klintcheng/kim/logger"
 )
@@ -59,6 +60,6 @@ func ReadRoute(path string) (*Route, error) {
 	for _, wl := range conf.Whitelist {
 		rt.Whitelist[wl.Key] = wl.Value
 	}
-	logger.RouterLogger.Infoln(rt)
+	logger.GatewayLogger.Infof("route: %+v", rt)
 	return &rt, nil
 }

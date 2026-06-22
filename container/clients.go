@@ -20,8 +20,8 @@ type ClientsImpl struct {
 	clients *sync.Map
 }
 
-// NewClients NewClients
-func NewClients(num int) ClientMap {
+// NewClients 创建一个 ClientMap 实例
+func NewClients() ClientMap {
 	return &ClientsImpl{
 		clients: new(sync.Map),
 	}

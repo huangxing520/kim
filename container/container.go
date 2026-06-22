@@ -123,12 +123,30 @@ func Start() error {
 	}
 
 	// 1. 启动Server
-	go func(srv kim.Server) {
-		err := srv.Start()
+	// srv.Start() 是阻塞调用（运行 Accept 循环），仅在出错或关闭时返回。
+	// net.Listen 失败（如端口被占用）是瞬时发生的，用 channel 捕获早期错误。
+	startErr := make(chan error, 1)
+	go func() {
+		startErr <- c.Srv.Start()
+	}()
+
+	// 等待一小段时间检测启动是否失败；若未失败说明已进入 Accept 循环
+	select {
+	case err := <-startErr:
 		if err != nil {
-			log.Errorln(err)
+			return fmt.Errorf("server start failed: %w", err)
 		}
-	}(c.Srv)
+	case <-time.After(time.Second):
+		// 服务器已成功启动，正在阻塞接收连接
+	}
+
+	// 后台监听服务器运行时错误（Accept 循环中意外退出）
+	// 此时 Start() 已返回成功，无法向上传播错误，记录日志即可
+	go func() {
+		if err := <-startErr; err != nil {
+			log.Errorf("server exited with error: %v", err)
+		}
+	}()
 
 	// 2. 与依赖的服务建立连接
 	for service := range c.deps {
@@ -217,16 +235,18 @@ func shutdown() error {
 }
 
 func lookup(serviceName string, header *pkt.Header, selector Selector) (kim.Client, error) {
+	c.RLock()
 	clients, ok := c.srvclients[serviceName]
+	c.RUnlock()
 	if !ok {
 		return nil, fmt.Errorf("service %s not found", serviceName)
 	}
 	// 【修复#5】原代码 clients.Services(KeyServiceState, StateAdult) 会并发读取 service.GetMeta() map
 	// 与 connectToService 中的并发写存在数据竞争，可能导致 panic
 	// 新加的：先获取全部服务，再用 getServiceState 线程安全地过滤 Adult 状态的服务
-	allSrvs := clients.Services()           // 新加的：不加过滤条件获取全部服务
+	allSrvs := clients.Services()                // 新加的：不加过滤条件获取全部服务
 	srvs := make([]kim.Service, 0, len(allSrvs)) // 新加的：预分配切片
-	for _, srv := range allSrvs {           // 新加的：遍历过滤
+	for _, srv := range allSrvs {                // 新加的：遍历过滤
 		if state, found := getServiceState(srv.ServiceID()); found && state == StateAdult {
 			srvs = append(srvs, srv)
 		}
@@ -242,8 +262,10 @@ func lookup(serviceName string, header *pkt.Header, selector Selector) (kim.Clie
 }
 
 func connectToService(serviceName string) error {
-	clients := NewClients(10)
+	clients := NewClients()
+	c.Lock()
 	c.srvclients[serviceName] = clients
+	c.Unlock()
 	// 1. 首先Watch服务的新增
 	delay := time.Second * 10
 	err := c.Naming.Subscribe(serviceName, func(services []kim.ServiceRegistration) {
@@ -295,7 +317,7 @@ func connectToService(serviceName string) error {
 // 原代码直接读写 service.GetMeta() 这个 map，在 lookup 并发读和这里并发写时会导致 panic
 // 新加的：用一个独立的 sync.RWMutex 保护状态读写，与 service 自身的 meta 解耦
 var (
-	serviceStateMu sync.RWMutex // 新加的：保护 serviceStateMap 的读写锁
+	serviceStateMu  sync.RWMutex              // 新加的：保护 serviceStateMap 的读写锁
 	serviceStateMap = make(map[string]string) // 新加的：serviceID -> 状态 的映射
 )
 
@@ -304,8 +326,6 @@ func setServiceState(service kim.ServiceRegistration, state string) {
 	serviceStateMu.Lock()
 	defer serviceStateMu.Unlock()
 	serviceStateMap[service.ServiceID()] = state
-	// 同时更新 meta 以保持与原逻辑兼容（lookup 中也读取 meta）
-	service.GetMeta()[KeyServiceState] = state
 }
 
 // 新加的：getServiceState 线程安全地读取服务状态
@@ -370,7 +390,7 @@ func buildClient(clients ClientMap, service kim.ServiceRegistration) (kim.Client
 // 【修复#4】新加的：buildLocks 为每个 serviceID 提供独立的锁，避免全局锁竞争
 // 原代码使用 Container 的全局 RWMutex，导致所有 buildClient 调用串行执行
 var (
-	buildLocksMu sync.Mutex            // 新加的：保护 buildLocks map 的锁
+	buildLocksMu sync.Mutex                     // 新加的：保护 buildLocks map 的锁
 	buildLocks   = make(map[string]*sync.Mutex) // 新加的：serviceID -> 专用锁
 )
 
@@ -406,11 +426,11 @@ func readLoop(cli kim.Client) error {
 		buf := bytes.NewBuffer(frame.GetPayload())
 
 		packet, err := pkt.MustReadLogicPkt(buf)
-		log.Warn("网关接收到消息：", packet)
 		if err != nil {
 			log.Info(err)
 			continue
 		}
+		log.Debugf("网关接收到消息：%v", packet)
 		err = pushMessage(packet)
 		if err != nil {
 			log.Info(err)
@@ -429,7 +449,12 @@ func pushMessage(packet *pkt.LogicPkt) error {
 		return fmt.Errorf("dest_channels is nil")
 	}
 
-	channelIds := strings.Split(channels.(string), ",")
+	channelsStr, ok := channels.(string)
+	if !ok {
+		return fmt.Errorf("dest_channels is not a string, got %T", channels)
+	}
+
+	channelIds := strings.Split(channelsStr, ",")
 	packet.DelMeta(wire.MetaDestServer)
 	packet.DelMeta(wire.MetaDestChannels)
 	payload := pkt.Marshal(packet)

@@ -38,8 +38,8 @@ func NewServerStartCmd(ctx context.Context, version string) *cobra.Command {
 			return RunServerStart(ctx, opts, version)
 		},
 	}
-	cmd.PersistentFlags().StringVarP(&opts.config, "config", "c", "./gateway/conf.yaml", "Config file")
-	cmd.PersistentFlags().StringVarP(&opts.route, "route", "r", "./gateway/route.json", "route file")
+	cmd.PersistentFlags().StringVarP(&opts.config, "config", "c", "services/gateway/conf.yaml", "Config file")
+	cmd.PersistentFlags().StringVarP(&opts.route, "route", "r", "services/gateway/route.json", "route file")
 	cmd.PersistentFlags().StringVarP(&opts.protocol, "protocol", "p", "ws", "protocol of ws or tcp")
 	return cmd
 }

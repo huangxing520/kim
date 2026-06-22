@@ -14,8 +14,8 @@ CONFIG_DIR      := services
 
 # 各服务配置文件路径
 GATEWAY_CONF    := $(CONFIG_DIR)/gateway/conf.yaml
-SERVER_CONF     := $(CONFIG_DIR)/server/conf.yaml
-SERVICE_CONF    := $(CONFIG_DIR)/service/conf.yaml
+COMET_CONF      := $(CONFIG_DIR)/comet/conf.yaml
+LOGIC_CONF      := $(CONFIG_DIR)/logic/conf.yaml
 ROUTER_CONF     := $(CONFIG_DIR)/router/conf.yaml
 ROUTER_DATA     := $(CONFIG_DIR)/router/data
 GATEWAY_ROUTE   := $(CONFIG_DIR)/gateway/route.json
@@ -28,8 +28,8 @@ PID_DIR         := .pid
 
 # ==================== 伪目标 ====================
 
-.PHONY: all build run-gateway run-server run-service run-router \
-        stop-gateway stop-server stop-service stop-router stop-all \
+.PHONY: all build run-gateway run-comet run-logic run-router \
+        stop-gateway stop-comet stop-logic stop-router stop-all \
         run-all build-all clean deps fmt vet test \
         docker-up docker-down help
 
@@ -73,32 +73,30 @@ run-gateway: build-all
 		-r ./gateway/route.json \
 		-p ws \
 		> ../$(LOG_DIR)/gateway.log 2>&1 & \
-		echo pwd & \
 		echo $$! > ../$(PID_DIR)/gateway.pid
 	@echo "==> gateway 已启动, PID: $$(cat $(PID_DIR)/gateway.pid)"
 	@echo "==> 日志: $(LOG_DIR)/gateway.log"
 
-## run-server: 启动 server 消息服务（聊天/登录/群组业务）
-run-server: build-all
-	@echo "==> 启动 server 服务..."
-	@cd services && ../$(BUILD_DIR)/$(BINARY_NAME) server \
-		-c ./server/conf.yaml \
+## run-comet: 启动 comet 消息服务（聊天/登录/群组业务）
+run-comet: build-all
+	@echo "==> 启动 comet 服务..."
+	@cd services && ../$(BUILD_DIR)/$(BINARY_NAME) comet \
+		-c ./comet/conf.yaml \
 		-s chat \
-		> ../$(LOG_DIR)/server.log 2>&1 & \
-		echo $$! > ../$(PID_DIR)/server.pid
-	@echo "==> server 已启动, PID: $$(cat $(PID_DIR)/server.pid)"
-	@echo "==> 日志: $(LOG_DIR)/server.log"
+		> ../$(LOG_DIR)/comet.log 2>&1 & \
+		echo $$! > ../$(PID_DIR)/comet.pid
+	@echo "==> comet 已启动, PID: $$(cat $(PID_DIR)/comet.pid)"
+	@echo "==> 日志: $(LOG_DIR)/comet.log"
 
-## run-service: 启动 service 数据服务（HTTP API + MySQL）
-run-service: build-all
-	@echo "==> 启动 service 服务..."
-	@cd services && ../$(BUILD_DIR)/$(BINARY_NAME) royal \
-		-c ./service/conf.yaml \
-		> ../$(LOG_DIR)/service.log 2>&1 & \
-		echo $(PWD) & \
-		echo $$! > ../$(PID_DIR)/service.pid
-	@echo "==> service 已启动, PID: $$(cat $(PID_DIR)/service.pid)"
-	@echo "==> 日志: $(LOG_DIR)/service.log"
+## run-logic: 启动 logic 数据服务（HTTP API + MySQL，服务名 royal）
+run-logic: build-all
+	@echo "==> 启动 logic 服务..."
+	@cd services && ../$(BUILD_DIR)/$(BINARY_NAME) logic \
+		-c ./logic/conf.yaml \
+		> ../$(LOG_DIR)/logic.log 2>&1 & \
+		echo $$! > ../$(PID_DIR)/logic.pid
+	@echo "==> logic 已启动, PID: $$(cat $(PID_DIR)/logic.pid)"
+	@echo "==> 日志: $(LOG_DIR)/logic.log"
 
 ## run-router: 启动 router 路由服务（IP 区域路由）
 run-router: build-all
@@ -120,16 +118,16 @@ run-gateway-fg: build
 		-r ./gateway/route.json \
 		-p ws
 
-## run-server-fg: 前台启动 server（用于调试）
-run-server-fg: build
-	@cd services && ../$(BUILD_DIR)/$(BINARY_NAME) server \
-		-c ./server/conf.yaml \
+## run-comet-fg: 前台启动 comet（用于调试）
+run-comet-fg: build
+	@cd services && ../$(BUILD_DIR)/$(BINARY_NAME) comet \
+		-c ./comet/conf.yaml \
 		-s chat
 
-## run-service-fg: 前台启动 service（用于调试）
-run-service-fg: build
-	@cd services && ../$(BUILD_DIR)/$(BINARY_NAME) royal \
-		-c ./service/conf.yaml
+## run-logic-fg: 前台启动 logic（用于调试）
+run-logic-fg: build
+	@cd services && ../$(BUILD_DIR)/$(BINARY_NAME) logic \
+		-c ./logic/conf.yaml
 
 ## run-router-fg: 前台启动 router（用于调试）
 run-router-fg: build
@@ -140,12 +138,12 @@ run-router-fg: build
 # ==================== 启动全部服务 ====================
 
 ## run-all: 后台启动全部 4 个服务（建议先 docker-up 启动依赖）
-run-all: build-all run-service run-router run-server run-gateway
+run-all: build-all run-logic run-router run-comet run-gateway
 	@echo ""
 	@echo "==> 全部服务已启动:"
-	@echo "    service (royal)  -> :8080  PID: $$(cat $(PID_DIR)/service.pid)"
+	@echo "    logic  (royal)   -> :8080  PID: $$(cat $(PID_DIR)/logic.pid)"
 	@echo "    router           -> :8100  PID: $$(cat $(PID_DIR)/router.pid)"
-	@echo "    server  (chat)   -> :8005  PID: $$(cat $(PID_DIR)/server.pid)"
+	@echo "    comet  (chat)    -> :8005  PID: $$(cat $(PID_DIR)/comet.pid)"
 	@echo "    gateway (ws)     -> :8000  PID: $$(cat $(PID_DIR)/gateway.pid)"
 	@echo ""
 	@echo "==> 使用 'make status' 查看运行状态, 'make stop-all' 停止全部"
@@ -167,34 +165,34 @@ stop-gateway:
 		echo "==> 未找到 gateway 的 PID 文件"; \
 	fi
 
-## stop-server: 停止 server 服务
-stop-server:
-	@if [ -f $(PID_DIR)/server.pid ]; then \
-		pid=$$(cat $(PID_DIR)/server.pid); \
+## stop-comet: 停止 comet 服务
+stop-comet:
+	@if [ -f $(PID_DIR)/comet.pid ]; then \
+		pid=$$(cat $(PID_DIR)/comet.pid); \
 		if kill -0 $$pid 2>/dev/null; then \
 			kill $$pid; \
-			echo "==> server (PID: $$pid) 已停止"; \
+			echo "==> comet (PID: $$pid) 已停止"; \
 		else \
-			echo "==> server 进程 $$pid 已不存在"; \
+			echo "==> comet 进程 $$pid 已不存在"; \
 		fi; \
-		rm -f $(PID_DIR)/server.pid; \
+		rm -f $(PID_DIR)/comet.pid; \
 	else \
-		echo "==> 未找到 server 的 PID 文件"; \
+		echo "==> 未找到 comet 的 PID 文件"; \
 	fi
 
-## stop-service: 停止 service 服务
-stop-service:
-	@if [ -f $(PID_DIR)/service.pid ]; then \
-		pid=$$(cat $(PID_DIR)/service.pid); \
+## stop-logic: 停止 logic 服务
+stop-logic:
+	@if [ -f $(PID_DIR)/logic.pid ]; then \
+		pid=$$(cat $(PID_DIR)/logic.pid); \
 		if kill -0 $$pid 2>/dev/null; then \
 			kill $$pid; \
-			echo "==> service (PID: $$pid) 已停止"; \
+			echo "==> logic (PID: $$pid) 已停止"; \
 		else \
-			echo "==> service 进程 $$pid 已不存在"; \
+			echo "==> logic 进程 $$pid 已不存在"; \
 		fi; \
-		rm -f $(PID_DIR)/service.pid; \
+		rm -f $(PID_DIR)/logic.pid; \
 	else \
-		echo "==> 未找到 service 的 PID 文件"; \
+		echo "==> 未找到 logic 的 PID 文件"; \
 	fi
 
 ## stop-router: 停止 router 服务
@@ -213,7 +211,7 @@ stop-router:
 	fi
 
 ## stop-all: 停止全部服务
-stop-all: stop-gateway stop-server stop-service stop-router
+stop-all: stop-gateway stop-comet stop-logic stop-router
 	@echo "==> 全部服务已停止"
 
 # ==================== 状态查看 ====================
@@ -221,7 +219,7 @@ stop-all: stop-gateway stop-server stop-service stop-router
 ## status: 查看各服务运行状态
 status:
 	@echo "==> 服务运行状态:"
-	@for svc in gateway server service router; do \
+	@for svc in gateway comet logic router; do \
 		if [ -f $(PID_DIR)/$$svc.pid ]; then \
 			pid=$$(cat $(PID_DIR)/$$svc.pid); \
 			if kill -0 $$pid 2>/dev/null; then \
@@ -240,13 +238,13 @@ status:
 logs-gateway:
 	@tail -f $(LOG_DIR)/gateway.log
 
-## logs-server: 查看 server 日志
-logs-server:
-	@tail -f $(LOG_DIR)/server.log
+## logs-comet: 查看 comet 日志
+logs-comet:
+	@tail -f $(LOG_DIR)/comet.log
 
-## logs-service: 查看 service 日志
-logs-service:
-	@tail -f $(LOG_DIR)/service.log
+## logs-logic: 查看 logic 日志
+logs-logic:
+	@tail -f $(LOG_DIR)/logic.log
 
 ## logs-router: 查看 router 日志
 logs-router:
@@ -276,8 +274,8 @@ docker-up:
 	@echo "==> 启动依赖容器 (MySQL/Redis/Consul)..."
 	docker-compose -f docker-compose.yml up -d
 	@echo "==> 依赖容器已启动"
-	@echo "    MySQL:  localhost:3306  (root/123456)"
-	@echo "    Redis:  localhost:6379"
+	@echo "    MySQL:  localhost:13306  (root/123456)"
+	@echo "    Redis:  localhost:16378"
 	@echo "    Consul: localhost:8500  (UI: http://localhost:8500)"
 
 ## docker-down: 停止依赖容器
@@ -315,29 +313,29 @@ help:
 	@echo ""
 	@echo "【启动单个服务（后台）】"
 	@echo "  run-gateway        启动 gateway 网关服务 (:8000)"
-	@echo "  run-server         启动 server 消息服务 (:8005)"
-	@echo "  run-service        启动 service 数据服务 (:8080)"
+	@echo "  run-comet          启动 comet 消息服务 (:8005)"
+	@echo "  run-logic          启动 logic 数据服务 (:8080)"
 	@echo "  run-router         启动 router 路由服务 (:8100)"
 	@echo ""
 	@echo "【启动单个服务（前台调试）】"
 	@echo "  run-gateway-fg     前台启动 gateway"
-	@echo "  run-server-fg      前台启动 server"
-	@echo "  run-service-fg     前台启动 service"
+	@echo "  run-comet-fg       前台启动 comet"
+	@echo "  run-logic-fg       前台启动 logic"
 	@echo "  run-router-fg      前台启动 router"
 	@echo ""
 	@echo "【批量启动/停止】"
 	@echo "  run-all            后台启动全部 4 个服务"
 	@echo "  stop-gateway       停止 gateway"
-	@echo "  stop-server        停止 server"
-	@echo "  stop-service       停止 service"
+	@echo "  stop-comet         停止 comet"
+	@echo "  stop-logic         停止 logic"
 	@echo "  stop-router        停止 router"
 	@echo "  stop-all           停止全部服务"
 	@echo ""
 	@echo "【监控】"
 	@echo "  status             查看各服务运行状态"
 	@echo "  logs-gateway       查看 gateway 日志"
-	@echo "  logs-server        查看 server 日志"
-	@echo "  logs-service       查看 service 日志"
+	@echo "  logs-comet         查看 comet 日志"
+	@echo "  logs-logic         查看 logic 日志"
 	@echo "  logs-router        查看 router 日志"
 	@echo ""
 	@echo "【代码质量】"

@@ -48,7 +48,7 @@ func Init(file string) (*Config, error) {
 
 	var config Config
 	if err := viper.ReadInConfig(); err != nil {
-		logger.LogicLogger.Warn(err)
+		log.Println(err)
 	} else {
 		if err := viper.Unmarshal(&config); err != nil {
 			return nil, err
@@ -70,7 +70,7 @@ func Init(file string) (*Config, error) {
 	if config.PublicAddress == "" {
 		config.PublicAddress = kim.GetLocalIP()
 	}
-	logger.LogicLogger.Info(config)
+	log.Printf("config: %s", config)
 	return &config, nil
 }
 

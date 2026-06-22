@@ -12,7 +12,7 @@ AppSecret: ""
 MessageGPool: 5000
 ConnectionGPool: 15000
 Kafka:
-  Enable: false
+  Enable: true
   Brokers:
     - localhost:29092
     - localhost:29192
