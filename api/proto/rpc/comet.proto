@@ -1,0 +1,17 @@
+syntax = "proto3";
+package rpc;
+option go_package = "github.com/klintcheng/kim/gen/rpc;rpc";
+
+service CometService {
+    rpc Forward(ForwardReq) returns (ForwardResp);
+}
+
+message ForwardReq {
+    bytes packet = 1;
+}
+
+message ForwardResp {
+    int32 code = 1;
+    string message = 2;
+    bytes packet = 3;
+}

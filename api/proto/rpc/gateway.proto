@@ -1,0 +1,17 @@
+syntax = "proto3";
+package rpc;
+option go_package = "github.com/klintcheng/kim/gen/rpc;rpc";
+
+service GatewayService {
+    rpc Push(PushReq) returns (PushResp);
+}
+
+message PushReq {
+    string channel_ids = 1;
+    bytes packet = 2;
+}
+
+message PushResp {
+    int32 code = 1;
+    string message = 2;
+}
