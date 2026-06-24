@@ -1,51 +1,45 @@
 // 文件：message_handler.go
-// 职责：消息 HTTP API 处理器——定义 ServiceHandler（Logic 服务的核心 Handler），处理单聊/群聊消息插入、已读确认、离线消息查询。
+// 职责：消息 gRPC 处理器——定义 ServiceHandler（Logic 服务的核心 Handler），处理单聊/群聊消息插入、已读确认、离线消息查询。
 //
 // 定义的类型：
-//   - ServiceHandler 结构体：Logic 服务核心 Handler（持有 BaseDb / MessageDb / Cache / Idgen）
+//   - ServiceHandler 结构体：Logic 服务核心 Handler（持有 BaseDb / MessageDb / Cache / Idgen），实现 LogicServiceServer 接口
 //
 // 方法：
-//   - (ServiceHandler).InsertUserMessage(c)   → POST 插入单聊消息（扩散写索引到双方）
-//   - (ServiceHandler).InsertGroupMessage(c)  → POST 插入群聊消息（扩散写索引到所有群成员）
-//   - (ServiceHandler).MessageAck(c)          → POST 消息已读确认（写入 Redis）
-//   - (ServiceHandler).GetOfflineMessageIndex(c)  → POST 查询离线消息索引
-//   - (ServiceHandler).GetOfflineMessageContent(c)→ POST 查询离线消息内容
+//   - (ServiceHandler).InsertUserMessage(ctx, req)        → 插入单聊消息（扩散写索引到双方）
+//   - (ServiceHandler).InsertGroupMessage(ctx, req)       → 插入群聊消息（扩散写索引到所有群成员）
+//   - (ServiceHandler).AckMessage(ctx, req)               → 消息已读确认（写入 Redis）
+//   - (ServiceHandler).GetOfflineMessageIndex(ctx, req)   → 查询离线消息索引
+//   - (ServiceHandler).GetOfflineMessageContent(ctx, req) → 查询离线消息内容
 
 package handler
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	"github.com/go-redis/redis/v7"
-	"github.com/kataras/iris/v12"
+	"github.com/klintcheng/kim/gen/rpc"
 	"github.com/klintcheng/kim/services/logic/database"
 	"github.com/klintcheng/kim/wire"
-	"github.com/klintcheng/kim/wire/rpc"
 	"gorm.io/gorm"
 )
 
-// ServiceHandler Logic 服务核心 Handler
+// ServiceHandler Logic 服务核心 Handler，实现 LogicServiceServer 接口
 type ServiceHandler struct {
+	rpc.UnimplementedLogicServiceServer
 	BaseDb    *gorm.DB
 	MessageDb *gorm.DB
 	Cache     *redis.Client
 	Idgen     *database.IDGenerator
 }
 
-func (h *ServiceHandler) InsertUserMessage(c iris.Context) {
-	var req rpc.InsertMessageReq
-	if err := c.ReadBody(&req); err != nil {
-		c.StopWithError(iris.StatusBadRequest, err)
-		return
-	}
-	messageId, err := h.insertUserMessage(&req)
+func (h *ServiceHandler) InsertUserMessage(ctx context.Context, req *rpc.InsertMessageReq) (*rpc.InsertMessageResp, error) {
+	messageId, err := h.insertUserMessage(req)
 	if err != nil {
-		c.StopWithError(iris.StatusInternalServerError, err)
-		return
+		return nil, err
 	}
-	_, _ = c.Negotiate(&rpc.InsertMessageResp{
-		MessageId: messageId,
-	})
+	return &rpc.InsertMessageResp{MessageId: messageId}, nil
 }
 
 func (h *ServiceHandler) insertUserMessage(req *rpc.InsertMessageReq) (int64, error) {
@@ -91,20 +85,12 @@ func (h *ServiceHandler) insertUserMessage(req *rpc.InsertMessageReq) (int64, er
 	return messageId, nil
 }
 
-func (h *ServiceHandler) InsertGroupMessage(c iris.Context) {
-	var req rpc.InsertMessageReq
-	if err := c.ReadBody(&req); err != nil {
-		c.StopWithError(iris.StatusBadRequest, err)
-		return
-	}
-	messageId, err := h.insertGroupMessage(&req)
+func (h *ServiceHandler) InsertGroupMessage(ctx context.Context, req *rpc.InsertMessageReq) (*rpc.InsertMessageResp, error) {
+	messageId, err := h.insertGroupMessage(req)
 	if err != nil {
-		c.StopWithError(iris.StatusInternalServerError, err)
-		return
+		return nil, err
 	}
-	_, _ = c.Negotiate(&rpc.InsertMessageResp{
-		MessageId: messageId,
-	})
+	return &rpc.InsertMessageResp{MessageId: messageId}, nil
 }
 
 func (h *ServiceHandler) insertGroupMessage(req *rpc.InsertMessageReq) (int64, error) {
@@ -173,18 +159,12 @@ func (h *ServiceHandler) insertGroupMessage(req *rpc.InsertMessageReq) (int64, e
 	return messageId, nil
 }
 
-func (h *ServiceHandler) MessageAck(c iris.Context) {
-	var req rpc.AckMessageReq
-	if err := c.ReadBody(&req); err != nil {
-		c.StopWithError(iris.StatusBadRequest, err)
-		return
-	}
-	// save in redis
+func (h *ServiceHandler) AckMessage(ctx context.Context, req *rpc.AckMessageReq) (*rpc.AckMessageResp, error) {
 	err := setMessageAck(h.Cache, req.Account, req.MessageId)
 	if err != nil {
-		c.StopWithError(iris.StatusInternalServerError, err)
-		return
+		return nil, err
 	}
+	return &rpc.AckMessageResp{Success: true}, nil
 }
 
 func setMessageAck(cache *redis.Client, account string, msgId int64) error {
@@ -195,34 +175,24 @@ func setMessageAck(cache *redis.Client, account string, msgId int64) error {
 	return cache.Set(key, msgId, wire.OfflineReadIndexExpiresIn).Err()
 }
 
-func (h *ServiceHandler) GetOfflineMessageIndex(c iris.Context) {
-	var req rpc.GetOfflineMessageIndexReq
-	if err := c.ReadBody(&req); err != nil {
-		c.StopWithError(iris.StatusBadRequest, err)
-		return
-	}
+func (h *ServiceHandler) GetOfflineMessageIndex(ctx context.Context, req *rpc.GetOfflineMessageIndexReq) (*rpc.GetOfflineMessageIndexResp, error) {
 	msgId := req.MessageId
 	start, err := h.getSentTime(req.Account, req.MessageId)
 	if err != nil {
-		c.StopWithError(iris.StatusInternalServerError, err)
-		return
+		return nil, err
 	}
 
 	var indexes []*rpc.MessageIndex
 	tx := h.MessageDb.Model(&database.MessageIndex{}).Select("send_time", "account_b", "direction", "message_id", "group")
 	err = tx.Where("account_a=? and send_time>? and direction=?", req.Account, start, 0).Order("send_time asc").Limit(wire.OfflineSyncIndexCount).Find(&indexes).Error
 	if err != nil {
-		c.StopWithError(iris.StatusInternalServerError, err)
-		return
+		return nil, err
 	}
 	err = setMessageAck(h.Cache, req.Account, msgId)
 	if err != nil {
-		c.StopWithError(iris.StatusInternalServerError, err)
-		return
+		return nil, err
 	}
-	_, _ = c.Negotiate(&rpc.GetOfflineMessageIndexResp{
-		List: indexes,
-	})
+	return &rpc.GetOfflineMessageIndexResp{List: indexes}, nil
 }
 
 func (h *ServiceHandler) getSentTime(account string, msgId int64) (int64, error) {
@@ -251,24 +221,15 @@ func (h *ServiceHandler) getSentTime(account string, msgId int64) (int64, error)
 	return start, nil
 }
 
-func (h *ServiceHandler) GetOfflineMessageContent(c iris.Context) {
-	var req rpc.GetOfflineMessageContentReq
-	if err := c.ReadBody(&req); err != nil {
-		c.StopWithError(iris.StatusBadRequest, err)
-		return
-	}
+func (h *ServiceHandler) GetOfflineMessageContent(ctx context.Context, req *rpc.GetOfflineMessageContentReq) (*rpc.GetOfflineMessageContentResp, error) {
 	mlen := len(req.MessageIds)
 	if mlen > wire.MessageMaxCountPerPage {
-		c.StopWithText(iris.StatusBadRequest, "too many MessageIds")
-		return
+		return nil, fmt.Errorf("too many MessageIds")
 	}
 	var contents []*rpc.Message
 	err := h.MessageDb.Model(&database.MessageContent{}).Where(req.MessageIds).Find(&contents).Error
 	if err != nil {
-		c.StopWithError(iris.StatusInternalServerError, err)
-		return
+		return nil, err
 	}
-	_, _ = c.Negotiate(&rpc.GetOfflineMessageContentResp{
-		List: contents,
-	})
+	return &rpc.GetOfflineMessageContentResp{List: contents}, nil
 }

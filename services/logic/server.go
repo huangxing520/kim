@@ -1,15 +1,15 @@
 // 文件：server.go
-// 职责：Logic 服务入口——Cobra 命令行启动 Royal（HTTP API）服务，包含数据库初始化、路由注册、服务注册。
+// 职责：Logic 服务入口——gRPC 服务器，包含数据库初始化、Handler 注册、Consul 服务注册。
 //
 // 定义的类型：
-//   - ServerStartOptions 结构体：命令行启动参数（config）
+//   - Server 结构体：gRPC 服务实例（持有 config / grpcSrv / naming）
 //
 // 方法：
-//   - NewServerStartCmd(ctx, version)       → 创建 logic 子命令（Cobra）
-//   - RunServerStart(ctx, opts, version)     → 启动 Logic：加载配置 → 初始化 DB/Redis/IDGenerator → 注册 Handler →
-//                                             注册 Consul 服务 → 启动 Iris HTTP 服务
-//   - HashCode(key)                          → CRC32 哈希（用于生成 NodeID）
-//   - HashCode(key)                          → 同 container.HashCode，用于计算默认 NodeID
+//   - New(ctx, cfg)              → 创建 Logic 服务：初始化 logger/DB/Redis/IDGenerator → 注册 gRPC Handler → 注册 Consul
+//   - (Server).Start(ctx)        → 启动 gRPC 服务（阻塞）
+//   - (Server).Stop(ctx)         → 反注册 Consul + GracefulStop
+//   - HashCode(key)              → CRC32 哈希（用于生成默认 NodeID）
+//   - initRedis(addr)            → 初始化单机 Redis 客户端
 
 package logic
 
@@ -18,170 +18,140 @@ import (
 	"fmt"
 	"hash/crc32"
 
-	"gorm.io/gorm"
+	"github.com/go-redis/redis/v7"
 
-	"github.com/kataras/iris/v12"
-	"github.com/klintcheng/kim/logger"
-	"github.com/klintcheng/kim/naming"
-	"github.com/klintcheng/kim/naming/consul"
-	"github.com/klintcheng/kim/services/logic/conf"
+	"github.com/klintcheng/kim/gen/rpc"
+	"github.com/klintcheng/kim/internal/logger"
+	"github.com/klintcheng/kim/internal/naming"
+	"github.com/klintcheng/kim/internal/server"
 	"github.com/klintcheng/kim/services/logic/database"
 	"github.com/klintcheng/kim/services/logic/handler"
 	"github.com/klintcheng/kim/wire"
-	"github.com/spf13/cobra"
 )
 
-// ServerStartOptions ServerStartOptions
-type ServerStartOptions struct {
-	config string
+// Server Logic gRPC 服务
+type Server struct {
+	config  *Config
+	grpcSrv *server.GRPCServer
+	naming  naming.Naming
 }
 
-// NewServerStartCmd creates a new http server command
-func NewServerStartCmd(ctx context.Context, version string) *cobra.Command {
-	opts := &ServerStartOptions{}
-
-	cmd := &cobra.Command{
-		Use:   "logic",
-		Short: "Start a rpc service",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return RunServerStart(ctx, opts, version)
-		},
-	}
-	cmd.PersistentFlags().StringVarP(&opts.config, "config", "c", "services/logic/conf.yaml", "Config file")
-	return cmd
-}
-
-// RunServerStart run http server
-func RunServerStart(ctx context.Context, opts *ServerStartOptions, version string) error {
-	config, err := conf.Init(opts.config)
-	if err != nil {
-		return err
-	}
+// New 创建 Logic 服务实例
+func New(ctx context.Context, cfg *Config) (*Server, error) {
+	// 初始化 logger
 	log, err := logger.Init(logger.Settings{
-		Level:       config.LogLevel,
+		Level:       cfg.LogLevel,
 		Filename:    "./data/logic.log",
 		ServiceName: "logic",
-		Kafka:       config.Kafka,
+		Kafka:       cfg.Kafka,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	logger.LogicLogger = log.Sugar()
 	defer log.Close()
 
-	// database.Init
-	var (
-		baseDb    *gorm.DB
-		messageDb *gorm.DB
-	)
-	baseDb, err = database.InitDb(config.Driver, config.BaseDb)
+	// 初始化 DB
+	baseDb, err := database.InitDb(cfg.Driver, cfg.BaseDb)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	messageDb, err = database.InitDb(config.Driver, config.MessageDb)
+	messageDb, err := database.InitDb(cfg.Driver, cfg.MessageDb)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	_ = baseDb.AutoMigrate(&database.Group{}, &database.GroupMember{}, &database.User{})
 	_ = messageDb.AutoMigrate(&database.MessageIndex{}, &database.MessageContent{})
 
-	if config.NodeID == 0 {
-		config.NodeID = int64(HashCode(config.ServiceID))
+	if cfg.NodeID == 0 {
+		cfg.NodeID = int64(HashCode(cfg.ServiceID))
 	}
-	idgen, err := database.NewIDGenerator(config.NodeID)
+	idgen, err := database.NewIDGenerator(cfg.NodeID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	rdb, err := conf.InitRedis(config.RedisAddrs, "")
+	// 初始化 Redis
+	rdb, err := initRedis(cfg.RedisAddrs)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	//cache:= storage.NewRedisStorage(rdb)
-	ns, err := consul.NewNaming(config.ConsulURL)
-	if err != nil {
-		return err
-	}
-	_ = ns.Register(&naming.DefaultService{
-		Id:       config.ServiceID,
-		Name:     wire.SNService, // service name
-		Address:  config.PublicAddress,
-		Port:     config.PublicPort,
-		Protocol: "http",
-		Tags:     config.Tags,
-		Meta: map[string]string{
-			consul.KeyHealthURL: fmt.Sprintf("http://%s:%d/health", config.PublicAddress, config.PublicPort),
-		},
-	})
-	defer func() {
-		_ = ns.Deregister(config.ServiceID)
-	}()
-	serviceHandler := handler.ServiceHandler{
+
+	// 创建 handler
+	h := &handler.ServiceHandler{
 		BaseDb:    baseDb,
 		MessageDb: messageDb,
 		Idgen:     idgen,
 		Cache:     rdb,
 	}
 
-	ac := conf.MakeAccessLog()
-	defer ac.Close()
+	// 创建 gRPC server
+	grpcSrv, err := server.NewGRPCServer(cfg.Listen, server.WithServiceName("logic"))
+	if err != nil {
+		return nil, err
+	}
+	rpc.RegisterLogicServiceServer(grpcSrv, h)
 
-	app := newApp(&serviceHandler)
-	app.UseRouter(ac.Handler)
-	app.UseRouter(setAllowedResponses)
-
-	// Start server
-	return app.Listen(config.Listen, iris.WithOptimizations)
-}
-
-func newApp(serviceHandler *handler.ServiceHandler) *iris.Application {
-	app := iris.Default()
-
-	app.Get("/health", func(ctx iris.Context) {
-		_, _ = ctx.WriteString("ok")
+	// Consul 注册
+	ns, err := naming.NewNaming(cfg.ConsulURL)
+	if err != nil {
+		return nil, err
+	}
+	_ = ns.Register(&naming.DefaultService{
+		Id:       cfg.ServiceID,
+		Name:     wire.SNService,
+		Address:  cfg.PublicAddress,
+		Port:     cfg.PublicPort,
+		Protocol: "grpc",
+		Tags:     cfg.Tags,
+		Meta: map[string]string{
+			naming.KeyHealthURL: fmt.Sprintf("http://%s:%d/health", cfg.PublicAddress, cfg.PublicPort),
+		},
 	})
-	messageAPI := app.Party("/api/:app/message")
-	{
-		messageAPI.Post("/user", serviceHandler.InsertUserMessage)
-		messageAPI.Post("/group", serviceHandler.InsertGroupMessage)
-		messageAPI.Post("/ack", serviceHandler.MessageAck)
+
+	s := &Server{
+		config:  cfg,
+		grpcSrv: grpcSrv,
+		naming:  ns,
 	}
 
-	groupAPI := app.Party("/api/:app/group")
-	{
-		groupAPI.Get("/:id", serviceHandler.GroupGet)
-		groupAPI.Post("", serviceHandler.GroupCreate)
-		groupAPI.Post("/member", serviceHandler.GroupJoin)
-		groupAPI.Delete("/member", serviceHandler.GroupQuit)
-		groupAPI.Get("/members/:id", serviceHandler.GroupMembers)
-	}
-	userAPI := app.Party("/api/:app/user")
-	{
-		userAPI.Post("/login", serviceHandler.Login)
-	}
-	offlineAPI := app.Party("/api/:app/offline")
-	{
-		offlineAPI.Use(iris.Compression)
-		offlineAPI.Post("/index", serviceHandler.GetOfflineMessageIndex)
-		offlineAPI.Post("/content", serviceHandler.GetOfflineMessageContent)
-	}
-	return app
+	return s, nil
 }
 
-func setAllowedResponses(ctx iris.Context) {
-	// Indicate that the Server can send JSON, XML, YAML and MessagePack for this request.
-	ctx.Negotiation().JSON().Protobuf().MsgPack()
-	// Add more, allowed by the server format of responses, mime types here...
-
-	// If client is missing an "Accept: " header then default it to JSON.
-	ctx.Negotiation().Accept.JSON()
-
-	ctx.Next()
+// Start 启动 gRPC 服务（阻塞）
+func (s *Server) Start(ctx context.Context) error {
+	logger.LogicLogger.Infof("logic service starting on %s", s.config.Listen)
+	return s.grpcSrv.Start()
 }
 
+// Stop 反注册 Consul 并优雅关闭 gRPC 服务
+func (s *Server) Stop(ctx context.Context) error {
+	if s.naming != nil {
+		_ = s.naming.Deregister(s.config.ServiceID)
+	}
+	s.grpcSrv.GracefulStop()
+	return nil
+}
+
+// HashCode CRC32 哈希（用于生成默认 NodeID）
 func HashCode(key string) uint32 {
 	hash32 := crc32.NewIEEE()
 	hash32.Write([]byte(key))
 	return hash32.Sum32() % 1000
+}
+
+// initRedis 初始化单机 Redis 客户端
+func initRedis(addr string) (*redis.Client, error) {
+	if addr == "" {
+		return nil, nil
+	}
+	redisdb := redis.NewClient(&redis.Options{
+		Addr: addr,
+	})
+	_, err := redisdb.Ping().Result()
+	if err != nil {
+		return nil, err
+	}
+	return redisdb, nil
 }

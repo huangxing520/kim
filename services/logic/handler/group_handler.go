@@ -1,42 +1,32 @@
 // 文件：group_handler.go
-// 职责：群组 HTTP API 处理器——处理群组 Creation/Join/Quit/Members/Detail HTTP 请求。
+// 职责：群组 gRPC 处理器——处理群组 Creation/Join/Quit/Members/Detail gRPC 请求。
 //
 // 方法（均为 ServiceHandler 的方法）：
-//   - GroupCreate(c)     → POST 创建群组（事务写 Group + GroupMember）
-//   - GroupJoin(c)       → POST 加入群组
-//   - GroupQuit(c)       → DELETE 退出群组
-//   - GroupMembers(c)    → GET 查询群成员列表
-//   - GroupDetail(c)     → GET 查询群详细信息
+//   - GroupCreate(ctx, req)  → 创建群组（事务写 Group + GroupMember）
+//   - GroupJoin(ctx, req)    → 加入群组
+//   - GroupQuit(ctx, req)    → 退出群组
+//   - GroupMembers(ctx, req) → 查询群成员列表
+//   - GroupGet(ctx, req)     → 查询群详细信息
 
 package handler
 
 import (
+	"context"
 	"errors"
 
 	"github.com/bwmarrin/snowflake"
-	"github.com/kataras/iris/v12"
+	"github.com/klintcheng/kim/gen/rpc"
 	"github.com/klintcheng/kim/services/logic/database"
-	"github.com/klintcheng/kim/wire/rpc"
 	"gorm.io/gorm"
 )
 
 // GroupCreate 处理群组创建请求
-func (h *ServiceHandler) GroupCreate(c iris.Context) {
-	app := c.Params().Get("app")
-	var req rpc.CreateGroupReq
-	if err := c.ReadBody(&req); err != nil {
-		c.StopWithError(iris.StatusBadRequest, err)
-		return
-	}
-	req.App = app
-	groupId, err := h.groupCreate(&req)
+func (h *ServiceHandler) GroupCreate(ctx context.Context, req *rpc.CreateGroupReq) (*rpc.CreateGroupResp, error) {
+	groupId, err := h.groupCreate(req)
 	if err != nil {
-		c.StopWithError(iris.StatusInternalServerError, err)
-		return
+		return nil, err
 	}
-	_, _ = c.Negotiate(&rpc.CreateGroupResp{
-		GroupId: groupId.Base36(),
-	})
+	return &rpc.CreateGroupResp{GroupId: groupId.Base36()}, nil
 }
 
 func (h *ServiceHandler) groupCreate(req *rpc.CreateGroupReq) (snowflake.ID, error) {
@@ -80,13 +70,7 @@ func (h *ServiceHandler) groupCreate(req *rpc.CreateGroupReq) (snowflake.ID, err
 	return groupId, nil
 }
 
-func (h *ServiceHandler) GroupJoin(c iris.Context) {
-	// app := c.Param("app")
-	var req rpc.JoinGroupReq
-	if err := c.ReadBody(&req); err != nil {
-		c.StopWithError(iris.StatusBadRequest, err)
-		return
-	}
+func (h *ServiceHandler) GroupJoin(ctx context.Context, req *rpc.JoinGroupReq) (*rpc.GroupMembersResp, error) {
 	gm := &database.GroupMember{
 		Model: database.Model{
 			ID: h.Idgen.Next().Int64(),
@@ -96,40 +80,32 @@ func (h *ServiceHandler) GroupJoin(c iris.Context) {
 	}
 	err := h.BaseDb.Create(gm).Error
 	if err != nil {
-		c.StopWithError(iris.StatusInternalServerError, err)
-		return
+		return nil, err
 	}
+	return &rpc.GroupMembersResp{}, nil
 }
 
-func (h *ServiceHandler) GroupQuit(c iris.Context) {
-	// app := c.Param("app")
-	var req rpc.QuitGroupReq
-	if err := c.ReadBody(&req); err != nil {
-		c.StopWithError(iris.StatusBadRequest, err)
-		return
-	}
+func (h *ServiceHandler) GroupQuit(ctx context.Context, req *rpc.QuitGroupReq) (*rpc.GroupMembersResp, error) {
 	gm := &database.GroupMember{
 		Account: req.Account,
 		Group:   req.GroupId,
 	}
 	err := h.BaseDb.Delete(&database.GroupMember{}, gm).Error
 	if err != nil {
-		c.StopWithError(iris.StatusInternalServerError, err)
-		return
+		return nil, err
 	}
+	return &rpc.GroupMembersResp{}, nil
 }
 
-func (h *ServiceHandler) GroupMembers(c iris.Context) {
-	group := c.Params().Get("id")
+func (h *ServiceHandler) GroupMembers(ctx context.Context, req *rpc.GroupMembersReq) (*rpc.GroupMembersResp, error) {
+	group := req.GroupId
 	if group == "" {
-		c.StopWithError(iris.StatusBadRequest, errors.New("group is null"))
-		return
+		return nil, errors.New("group is null")
 	}
 	var members []database.GroupMember
 	err := h.BaseDb.Order("Updated_At asc").Find(&members, database.GroupMember{Group: group}).Error
 	if err != nil {
-		c.StopWithError(iris.StatusInternalServerError, err)
-		return
+		return nil, err
 	}
 	var users = make([]*rpc.Member, len(members))
 	for i, m := range members {
@@ -139,34 +115,29 @@ func (h *ServiceHandler) GroupMembers(c iris.Context) {
 			JoinTime: m.CreatedAt.Unix(),
 		}
 	}
-	_, _ = c.Negotiate(&rpc.GroupMembersResp{
-		Users: users,
-	})
+	return &rpc.GroupMembersResp{Users: users}, nil
 }
 
-func (h *ServiceHandler) GroupGet(c iris.Context) {
-	groupId := c.Params().Get("id")
+func (h *ServiceHandler) GroupGet(ctx context.Context, req *rpc.GetGroupReq) (*rpc.GetGroupResp, error) {
+	groupId := req.GroupId
 	if groupId == "" {
-		c.StopWithError(iris.StatusBadRequest, errors.New("group is null"))
-		return
+		return nil, errors.New("group is null")
 	}
 	id, err := h.Idgen.ParseBase36(groupId)
 	if err != nil {
-		c.StopWithError(iris.StatusBadRequest, errors.New("group is invaild:"+groupId))
-		return
+		return nil, errors.New("group is invalid:" + groupId)
 	}
 	var group database.Group
 	err = h.BaseDb.First(&group, id.Int64()).Error
 	if err != nil {
-		c.StopWithError(iris.StatusInternalServerError, err)
-		return
+		return nil, err
 	}
-	_, _ = c.Negotiate(&rpc.GetGroupResp{
+	return &rpc.GetGroupResp{
 		Id:           groupId,
 		Name:         group.Name,
 		Avatar:       group.Avatar,
 		Introduction: group.Introduction,
 		Owner:        group.Owner,
 		CreatedAt:    group.CreatedAt.Unix(),
-	})
+	}, nil
 }
