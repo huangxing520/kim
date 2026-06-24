@@ -1,3 +1,16 @@
+// 文件：selector.go
+// 职责：区域路由选择器——根据消息中的 App/Account 和白名单/权重分片，将消息路由到对应 Zone 的服务节点。
+//
+// 定义的类型：
+//   - RouteSelector 结构体：区域路由选择器（持有路由配置）
+//
+// 方法：
+//   - NewRouteSelector(configPath)                  → 从配置文件创建 RouteSelector
+//   - (RouteSelector).Lookup(header, srvs)           → 按白名单/权重选择目标服务：命中白名单→固定 Zone；否则按权重分片选 Zone→区域内哈希选节点
+//   - filterSrvs(srvs, zone)                         → 过滤出指定 zone 的服务
+//   - selectSrvs(srvs, account)                      → 在服务列表中按 account 哈希选择节点
+//   - hashcode(key)                                  → CRC32 哈希函数
+
 package serv
 
 import (
@@ -10,7 +23,7 @@ import (
 	"github.com/klintcheng/kim/wire/pkt"
 )
 
-// RouteSelector RouteSelector
+// RouteSelector 区域路由选择器
 type RouteSelector struct {
 	route *conf.Route
 }

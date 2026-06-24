@@ -1,3 +1,16 @@
+// 文件：config.go
+// 职责：Comet 配置加载——通过 Viper + envconfig 加载配置，并提供 Redis 连接初始化。
+//
+// 定义的类型：
+//   - Config 结构体：Comet 配置（ServiceID / Listen / ConsulURL / RedisAddrs / RoyalURL / Zone 等）
+//   - Server 结构体：空结构体（预留）
+//
+// 方法：
+//   - Init(file)                          → 加载配置（环境变量 + YAML，自动生成默认 ServiceID）
+//   - (Config).String()                   → JSON 序列化
+//   - InitRedis(addr, pass)               → 初始化单机 Redis 客户端
+//   - InitFailoverRedis(master, sentinels) → 初始化 Sentinel 哨兵模式 Redis 客户端
+
 package conf
 
 import (
@@ -14,10 +27,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Server 空结构体（预留）
 type Server struct {
 }
 
-// Config Config
+// Config Comet 服务配置
 type Config struct {
 	ServiceID       string
 	Listen          string `default:":8005"`

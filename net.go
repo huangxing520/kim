@@ -1,3 +1,12 @@
+// 文件：net.go
+// 职责：网络相关工具函数——获取本机 IP、判断私有地址、从 HTTP 请求头提取客户端真实 IP。
+//
+// 方法：
+//   - GetLocalIP()                    → 获取本机第一个非回环 IPv4 地址
+//   - FromRequest(r *http.Request)    → 从 HTTP 请求头（X-Real-Ip / X-Forwarded-For）提取客户端真实公网 IP
+//   - RealIP(r *http.Request)         → 已废弃，等同于 FromRequest，保留用于兼容
+//   - isPrivateAddress(address)       → 判断 IP 地址是否为私有/内网地址
+
 package kim
 
 import (
@@ -7,7 +16,7 @@ import (
 	"strings"
 )
 
-// GetLocalIP GetLocalIP
+// GetLocalIP 获取本机第一个非回环 IPv4 地址
 func GetLocalIP() string {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {

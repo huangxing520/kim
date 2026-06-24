@@ -1,3 +1,20 @@
+// 文件：group.go
+// 职责：群组 HTTP 服务客户端——通过 HTTP + protobuf 调用 Royal 服务的群组 API（Create/Members/Join/Quit/Detail）。
+//
+// 定义的类型：
+//   - Group 接口：群组服务的抽象（Create / Members / Join / Quit / Detail）
+//   - GroupHttp 结构体：基于 resty HTTP 客户端 + protobuf 序列化的远程调用实现
+//
+// 方法：
+//   - NewGroupService(url)              → 创建 GroupHttp（直连 URL）
+//   - NewGroupServiceWithSRV(scheme, srv)→ 创建 GroupHttp（通过 Consul SRV 记录发现）
+//   - (GroupHttp).Create(app, req)       → POST 调用创建群组 API
+//   - (GroupHttp).Members(app, req)      → GET 调用查询群成员 API
+//   - (GroupHttp).Join(app, req)         → POST 调用加入群组 API
+//   - (GroupHttp).Quit(app, req)         → DELETE 调用退出群组 API
+//   - (GroupHttp).Detail(app, req)       → GET 调用查询群详情 API
+//   - (GroupHttp).Req()                  → 返回 resty.Request（支持直连或 SRV）
+
 package service
 
 import (
@@ -10,6 +27,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// Group 群组服务接口
 type Group interface {
 	Create(app string, req *rpc.CreateGroupReq) (*rpc.CreateGroupResp, error)
 	Members(app string, req *rpc.GroupMembersReq) (*rpc.GroupMembersResp, error)

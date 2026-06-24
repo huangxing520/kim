@@ -1,3 +1,18 @@
+// 文件：router.go
+// 职责：区域路由 API——根据客户端 IP 查找所属区域，从 Naming 获取最优点网关列表并返回域名。
+//
+// 常量：
+//   - DefaultLocation：默认地理位置（中国）
+//
+// 定义的类型：
+//   - RouterApi 结构体：路由 API 处理器（持有 Naming / IpRegion / Router 配置）
+//   - LookUpResp 结构体：路由查询响应（UTC / Location / Domains）
+//
+// 方法：
+//   - (RouterApi).Lookup(c)         → GET /api/lookup/:token 路由查询主流程
+//   - selectIdc(token, region)      → 按 token 哈希选择 Region 下的 IDC
+//   - selectGateways(token, gw, n)  → 按 token 哈希选择 n 个不重复的网关
+
 package apis
 
 import (
@@ -14,20 +29,24 @@ import (
 	"github.com/klintcheng/kim/wire"
 )
 
+// DefaultLocation 默认地理位置
 const DefaultLocation = "中国"
 
+// RouterApi 路由 API 处理器
 type RouterApi struct {
 	Naming   naming.Naming
 	IpRegion ipregion.IpRegion
 	Config   conf.Router
 }
 
+// LookUpResp 路由查询响应
 type LookUpResp struct {
 	UTC      int64    `json:"utc"`
 	Location string   `json:"location"`
 	Domains  []string `json:"domains"`
 }
 
+// Lookup 区域路由查询主流程
 func (r *RouterApi) Lookup(c iris.Context) {
 	ip := kim.RealIP(c.Request())
 	token := c.Params().Get("token")

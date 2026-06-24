@@ -1,3 +1,18 @@
+// 文件：connection.go
+// 职责：WebSocket 连接和帧实现——封装 WebSocket 帧（Frame）和带缓冲的连接（WsConn）。
+//
+// 定义的类型：
+//   - Frame 结构体：WebSocket 帧包装，封装 gobwas/ws.Frame
+//   - WsConn 结构体：带 bufio 缓冲的 WebSocket 连接，实现 kim.Conn 接口
+//
+// 方法：
+//   - (Frame).SetOpCode / GetOpCode / SetPayload / GetPayload → 帧操作码和负载的读写
+//   - NewConn(conn)                           → 创建一个带缓冲的 WsConn（默认读写缓冲）
+//   - NewConnWithRW(conn, rd, wr)             → 使用指定读写缓冲创建 WsConn
+//   - (WsConn).ReadFrame()                    → 从 bufio.Reader 读取一帧
+//   - (WsConn).WriteFrame(code, payload)      → 向 bufio.Writer 写入一帧（批量 Flush 优化）
+//   - (WsConn).Flush()                        → 刷新缓冲写入
+
 package websocket
 
 import (
@@ -9,6 +24,7 @@ import (
 	"github.com/klintcheng/kim"
 )
 
+// Frame WebSocket 帧包装
 type Frame struct {
 	raw ws.Frame
 }

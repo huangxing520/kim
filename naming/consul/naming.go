@@ -1,6 +1,28 @@
+// 文件：naming.go
+// 职责：基于 Consul 的服务注册与发现实现——提供服务的 Register/Deregister/Find/Subscribe/Unsubscribe。
+//       使用 Consul Catalog API 的长轮询（WaitIndex）实现服务变更推送。
+//
+// 常量：
+//   - KeyProtocol / KeyHealthURL：Consul ServiceMeta 中的 key 常量
+//
+// 定义的类型：
+//   - Naming 结构体：naming.Naming 接口的 Consul 实现
+//   - Watch 结构体：单次服务订阅的状态（服务名、回调、WaitIndex、退出通道）
+//
+// 方法：
+//   - NewNaming(consulUrl)                              → 创建 Consul Naming 实例
+//   - (Naming).Find(name, tags...)                      → 查询指定服务的所有健康实例
+//   - (Naming).Register(s)                              → 向 Consul 注册服务（含 HTTP 健康检查）
+//   - (Naming).Deregister(serviceID)                    → 从 Consul 注销服务
+//   - (Naming).Subscribe(serviceName, callback)         → 订阅服务变更（启后台 goroutine 长轮询）
+//   - (Naming).Unsubscribe(serviceName)                 → 取消订阅
+//   - (Naming).load(name, waitIndex, tags...)           → 从 Consul Catalog 加载服务列表（支持阻塞长轮询）
+//   - (Naming).watch(wh)                                → 后台 watch goroutine：循环 load → 回调 → 更新 WaitIndex
+
 package consul
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -12,24 +34,30 @@ import (
 	"github.com/klintcheng/kim/naming"
 )
 
+// Consul ServiceMeta 中的 key 常量
 const (
 	KeyProtocol  = "protocol"
 	KeyHealthURL = "health_url"
 )
 
+// Watch 单次服务订阅的状态
 type Watch struct {
 	Service   string
 	Callback  func([]kim.ServiceRegistration)
 	WaitIndex uint64
 	Quit      chan struct{}
+	Ctx       context.Context    // context 用于取消 HTTP 请求
+	Cancel    context.CancelFunc // 取消函数
 }
 
+// Naming naming.Naming 接口的 Consul 实现
 type Naming struct {
 	sync.RWMutex
 	cli     *api.Client
 	watches map[string]*Watch
 }
 
+// NewNaming 创建 Consul Naming 实例
 func NewNaming(consulUrl string) (naming.Naming, error) {
 	conf := api.DefaultConfig()
 	conf.Address = consulUrl
@@ -45,22 +73,36 @@ func NewNaming(consulUrl string) (naming.Naming, error) {
 	return naming, nil
 }
 
+// Find 查询服务的所有健康实例
 func (n *Naming) Find(name string, tags ...string) ([]kim.ServiceRegistration, error) {
-	services, _, err := n.load(name, 0, tags...)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	services, _, err := n.load(ctx, name, 0, tags...)
 	if err != nil {
 		return nil, err
 	}
 	return services, nil
 }
 
-// refresh service registration
-func (n *Naming) load(name string, waitIndex uint64, tags ...string) ([]kim.ServiceRegistration, *api.QueryMeta, error) {
+// load 从 Consul Catalog 加载服务列表（支持长轮询阻塞等待变更）
+func (n *Naming) load(ctx context.Context, name string, waitIndex uint64, tags ...string) ([]kim.ServiceRegistration, *api.QueryMeta, error) {
 	opts := &api.QueryOptions{
 		UseCache:  true,
-		MaxAge:    time.Minute, // MaxAge limits how old a cached value will be returned if UseCache is true.
+		MaxAge:    time.Minute,
 		WaitIndex: waitIndex,
 	}
+
+	// 如果 context 有超时或被取消，则使用带超时的查询
+	if ctx.Err() != nil {
+		return nil, nil, ctx.Err()
+	}
+
 	catalogServices, meta, err := n.cli.Catalog().ServiceMultipleTags(name, tags, opts)
+	// 无论是否有 err，都优先检查 context 是否已取消
+	if ctx.Err() == context.Canceled {
+		return nil, meta, nil
+	}
 	if err != nil {
 		return nil, meta, err
 	}
@@ -85,6 +127,7 @@ func (n *Naming) load(name string, waitIndex uint64, tags ...string) ([]kim.Serv
 	return services, meta, nil
 }
 
+// Register 向 Consul 注册服务（含 HTTP 健康检查）
 func (n *Naming) Register(s kim.ServiceRegistration) error {
 	reg := &api.AgentServiceRegistration{
 		ID:      s.ServiceID(),
@@ -105,7 +148,7 @@ func (n *Naming) Register(s kim.ServiceRegistration) error {
 		check := new(api.AgentServiceCheck)
 		check.CheckID = fmt.Sprintf("%s_normal", s.ServiceID())
 		check.HTTP = healthURL
-		check.Timeout = "1s" // http timeout
+		check.Timeout = "1s"
 		check.Interval = "10s"
 		check.DeregisterCriticalServiceAfter = "20s"
 		reg.Check = check
@@ -114,20 +157,28 @@ func (n *Naming) Register(s kim.ServiceRegistration) error {
 	return err
 }
 
+// Deregister 从 Consul 注销服务
 func (n *Naming) Deregister(serviceID string) error {
 	return n.cli.Agent().ServiceDeregister(serviceID)
 }
 
+// Subscribe 订阅服务变更（长轮询方式，变更时回调）
 func (n *Naming) Subscribe(serviceName string, callback func([]kim.ServiceRegistration)) error {
 	n.Lock()
 	defer n.Unlock()
 	if _, ok := n.watches[serviceName]; ok {
 		return errors.New("serviceName has already been registered")
 	}
+
+	// 创建可取消的 context，用于中断阻塞的 HTTP 请求
+	ctx, cancel := context.WithCancel(context.Background())
+
 	w := &Watch{
 		Service:  serviceName,
 		Callback: callback,
 		Quit:     make(chan struct{}, 1),
+		Ctx:      ctx,
+		Cancel:   cancel,
 	}
 	n.watches[serviceName] = w
 
@@ -135,6 +186,7 @@ func (n *Naming) Subscribe(serviceName string, callback func([]kim.ServiceRegist
 	return nil
 }
 
+// Unsubscribe 取消服务订阅
 func (n *Naming) Unsubscribe(serviceName string) error {
 	n.Lock()
 	defer n.Unlock()
@@ -142,16 +194,24 @@ func (n *Naming) Unsubscribe(serviceName string) error {
 
 	delete(n.watches, serviceName)
 	if ok {
+		if wh.Cancel != nil {
+			wh.Cancel() // 取消 context，中断阻塞的 HTTP 请求
+		}
 		close(wh.Quit)
 	}
 	return nil
 }
 
+// watch 后台 goroutine：循环 load → 回调 → 更新 WaitIndex
 func (n *Naming) watch(wh *Watch) {
 	stopped := false
 
 	var doWatch = func(service string, callback func([]kim.ServiceRegistration)) {
-		services, meta, err := n.load(service, wh.WaitIndex) // <-- blocking until services has changed
+		// 使用带超时的 context 避免永久阻塞
+		reqCtx, cancel := context.WithTimeout(wh.Ctx, 5*time.Minute)
+		defer cancel()
+
+		services, meta, err := n.load(reqCtx, service, wh.WaitIndex)
 		if err != nil {
 			logger.CommonLogger.Warn(err)
 			return

@@ -1,3 +1,16 @@
+// 文件：server.go
+// 职责：Logic 服务入口——Cobra 命令行启动 Royal（HTTP API）服务，包含数据库初始化、路由注册、服务注册。
+//
+// 定义的类型：
+//   - ServerStartOptions 结构体：命令行启动参数（config）
+//
+// 方法：
+//   - NewServerStartCmd(ctx, version)       → 创建 logic 子命令（Cobra）
+//   - RunServerStart(ctx, opts, version)     → 启动 Logic：加载配置 → 初始化 DB/Redis/IDGenerator → 注册 Handler →
+//                                             注册 Consul 服务 → 启动 Iris HTTP 服务
+//   - HashCode(key)                          → CRC32 哈希（用于生成 NodeID）
+//   - HashCode(key)                          → 同 container.HashCode，用于计算默认 NodeID
+
 package logic
 
 import (

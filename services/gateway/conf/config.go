@@ -1,3 +1,13 @@
+// 文件：config.go
+// 职责：Gateway 配置加载——通过 Viper + envconfig 从 YAML 文件和环境变量加载 Gateway 服务配置。
+//
+// 定义的类型：
+//   - Config 结构体：Gateway 配置（ServiceID / Listen / ConsulURL / AppSecret / 协程池等）
+//
+// 方法：
+//   - Init(file)       → 加载配置（环境变量 + YAML 文件，自动生成默认 ServiceID）
+//   - (Config).String() → JSON 序列化配置
+
 package conf
 
 import (
@@ -11,7 +21,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Config Config
+// Config Gateway 服务配置
 type Config struct {
 	ServiceID       string
 	ServiceName     string `default:"wgateway"`

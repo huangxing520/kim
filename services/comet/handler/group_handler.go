@@ -1,3 +1,16 @@
+// 文件：group_handler.go
+// 职责：群组操作处理——处理群创建、加入、退出、详情查询。
+//
+// 定义的类型：
+//   - GroupHandler 结构体：群组处理器（持有 Group service）
+//
+// 方法：
+//   - NewGroupHandler(groupService)     → 创建 GroupHandler
+//   - (GroupHandler).DoCreate(ctx)       → 处理群创建：调用 Group.Create → 通知成员
+//   - (GroupHandler).DoJoin(ctx)         → 处理加群：调用 Group.Join
+//   - (GroupHandler).DoQuit(ctx)         → 处理退群：调用 Group.Quit
+//   - (GroupHandler).DoDetail(ctx)       → 查询群详情：调用 Group.Detail + Members
+
 package handler
 
 import (
@@ -7,6 +20,7 @@ import (
 	"github.com/klintcheng/kim/wire/rpc"
 )
 
+// GroupHandler 群组处理器
 type GroupHandler struct {
 	groupService service.Group
 }

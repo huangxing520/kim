@@ -1,3 +1,18 @@
+// 文件：handler.go
+// 职责：Comet 业务处理器——实现 Acceptor / MessageListener / StateListener 接口，处理 Gateway 连接握手、消息路由分发。
+//
+// 定义的类型：
+//   - ServHandler 结构体：Comet 业务处理器（持有 Router、SessionStorage、ServerDispatcher）
+//   - ServerDispatcher 结构体：消息分发器实现
+//
+// 方法：
+//   - NewServHandler(r, cache)              → 创建 ServHandler
+//   - (ServHandler).Accept(conn, timeout)    → 连接接收：读取 InnerHandshakeReq → 返回对端 ServiceID 作为 ChannelID
+//   - (ServHandler).Receive(ag, payload)     → 消息接收：解析 LogicPkt → 获取/构造 Session → Router.Serve 分发
+//   - (ServHandler).Disconnect(id)           → 连接断开回调
+//   - (ServerDispatcher).Push(gateway, chs, p) → 将消息 Push 到目标 gateway
+//   - RespErr(ag, p, status)                 → 发送错误响应到发送方
+
 package serv
 
 import (
@@ -13,9 +28,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-
-
-// ServHandler ServHandler
+// ServHandler Comet 业务处理器
 type ServHandler struct {
 	r          *kim.Router
 	cache      kim.SessionStorage
@@ -40,10 +53,10 @@ func (h *ServHandler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.
 
 	var req pkt.InnerHandshakeReq
 	_ = proto.Unmarshal(frame.GetPayload(), &req)
-	 logger.CometLogger.WithFields(logger.Fields{
-	"service": wire.SNChat,
-	"pkg":     "serv",
-}).Info("Accept -- ", req.ServiceId)
+	logger.CometLogger.WithFields(logger.Fields{
+		"service": wire.SNChat,
+		"pkg":     "serv",
+	}).Info("Accept -- ", req.ServiceId)
 
 	return req.ServiceId, nil, nil
 }
@@ -53,10 +66,10 @@ func (h *ServHandler) Receive(ag kim.Agent, payload []byte) {
 	buf := bytes.NewBuffer(payload)
 	packet, err := pkt.MustReadLogicPkt(buf)
 	if err != nil {
-		 logger.CometLogger.WithFields(logger.Fields{
-	"service": wire.SNChat,
-	"pkg":     "serv",
-}).Error(err)
+		logger.CometLogger.WithFields(logger.Fields{
+			"service": wire.SNChat,
+			"pkg":     "serv",
+		}).Error(err)
 		return
 	}
 	var session *pkt.Session
@@ -78,16 +91,16 @@ func (h *ServHandler) Receive(ag kim.Agent, payload []byte) {
 			return
 		}
 	}
-	 logger.CometLogger.WithFields(logger.Fields{
-	"service": wire.SNChat,
-	"pkg":     "serv",
-}).Debugf("recv a message from %s  %s", session, &packet.Header)
+	logger.CometLogger.WithFields(logger.Fields{
+		"service": wire.SNChat,
+		"pkg":     "serv",
+	}).Debugf("recv a message from %s  %s", session, &packet.Header)
 	err = h.r.Serve(packet, h.dispatcher, h.cache, session)
 	if err != nil {
-		 logger.CometLogger.WithFields(logger.Fields{
-	"service": wire.SNChat,
-	"pkg":     "serv",
-}).Warn(err)
+		logger.CometLogger.WithFields(logger.Fields{
+			"service": wire.SNChat,
+			"pkg":     "serv",
+		}).Warn(err)
 	}
 
 }

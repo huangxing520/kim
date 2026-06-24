@@ -1,3 +1,12 @@
+// 文件：mysql.go
+// 职责：MySQL 数据库初始化——通过 GORM 建立 MySQL 连接，配置连接池参数和命名策略。
+//
+// 常量：
+//   - defaultMaxOpenConns / defaultMaxIdleConns / defaultConnMaxLifetime / defaultConnMaxIdleTime：连接池配置
+//
+// 方法：
+//   - InitDb(driver, dsn) → 初始化 GORM 数据库连接（支持 MySQL，配置连接池和命名策略）
+
 package database
 
 import (
@@ -16,8 +25,7 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-// 【修复#11】新加的：数据库连接池默认配置常量
-// 原代码未配置连接池参数，使用 GORM 默认值，高并发下可能耗尽 MySQL 连接数或频繁建立销毁连接
+// 数据库连接池默认配置
 const (
 	defaultMaxOpenConns    = 100              // 新加的：最大连接数
 	defaultMaxIdleConns    = 20               // 新加的：最大空闲连接数

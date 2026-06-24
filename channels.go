@@ -1,3 +1,17 @@
+// 文件：channels.go
+// 职责：Channel 连接管理容器——基于 sync.Map 的并发安全 Channel 集合，管理所有活跃的客户端连接。
+//
+// 定义的类型：
+//   - ChannelMap 接口：Channel 集合的抽象（Add / Remove / Get / All）
+//   - ChannelsImpl 结构体：sync.Map 包装实现
+//
+// 方法：
+//   - NewChannels()                         → 创建一个新的并发安全 Channel 集合
+//   - (ChannelsImpl).Add(channel)           → 添加一个 Channel（以 channel.ID() 为 key）
+//   - (ChannelsImpl).Remove(id)             → 移除指定 ID 的 Channel
+//   - (ChannelsImpl).Get(id)                → 按 ID 获取 Channel，返回 Channel 和 bool
+//   - (ChannelsImpl).All()                  → 返回当前所有 Channel 的切片
+
 package kim
 
 import (
@@ -6,7 +20,7 @@ import (
 	"github.com/klintcheng/kim/logger"
 )
 
-// ChannelMap ChannelMap
+// ChannelMap Channel 集合接口
 type ChannelMap interface {
 	Add(channel Channel)
 	Remove(id string)
@@ -20,7 +34,7 @@ type ChannelsImpl struct {
 }
 
 // NewChannels NewChannels
-func NewChannels(num int) ChannelMap {
+func NewChannels() ChannelMap {
 	return &ChannelsImpl{
 		channels: new(sync.Map),
 	}

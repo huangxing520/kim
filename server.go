@@ -1,3 +1,25 @@
+// 文件：server.go
+// 职责：核心接口定义——整个 KIM 系统的抽象层，定义 Server、Acceptor、MessageListener、StateListener、Agent、Conn、Channel 等基础接口/类型。
+//
+// 常量：
+//   - DefaultReadWait / DefaultWriteWait / DefaultLoginWait / DefaultHeartbeat：默认超时和心跳参数
+//   - DefaultMessageReadPool / DefaultConnectionPool：默认协程池大小
+//
+// 定义的类型：
+//   - Service 接口：基础服务抽象（ServiceID / ServiceName / GetMeta）
+//   - ServiceRegistration 接口：服务注册抽象（组合 Service + 地址/端口/标签/协议/命名空间）
+//   - Server 接口：服务端核心接口（组合 ServiceRegistration + SetAcceptor / SetMessageListener / SetStateListener / Start / Push / Shutdown）
+//   - Channel 接口：单个连接的抽象（ID / Push / Meta / Readloop / Close 等）
+//   - Acceptor 接口：连接接收器（Accept 握手返回 channelID + Meta）
+//   - MessageListener 接口：消息监听器（Receive 回调）
+//   - StateListener 接口：状态监听器（Disconnect 回调）
+//   - Agent 接口：客户端代理（ID / Push / GetMeta）
+//   - Conn 接口：WebSocket/协议连接（组合 net.Conn + ReadFrame / WriteFrame / Flush）
+//   - ChannelImpl 引用了 channel.go 中定义的 Channel 实现
+//
+// 方法（接口定义，实现在各处）：
+//   - 详见各接口内部的注释签名
+
 package kim
 
 import (
@@ -6,6 +28,8 @@ import (
 	"time"
 )
 
+// ---------- 默认超时/心跳参数 ----------
+
 const (
 	DefaultReadWait  = time.Minute * 3
 	DefaultWriteWait = time.Second * 10
@@ -13,20 +37,23 @@ const (
 	DefaultHeartbeat = time.Second * 55
 )
 
+// ---------- 默认协程池参数 ----------
+
 const (
-	// 定义读取消息的默认goroutine池大小
-	DefaultMessageReadPool = 5000
-	DefaultConnectionPool  = 5000
+	DefaultMessageReadPool = 5000 // 消息处理协程池默认大小
+	DefaultConnectionPool  = 5000 // 连接处理协程池默认大小
 )
 
-// 定义了基础服务的抽象接口
+// ---------- 核心接口定义 ----------
+
+// Service 基础服务抽象接口
 type Service interface {
 	ServiceID() string
 	ServiceName() string
 	GetMeta() map[string]string
 }
 
-// 定义服务注册的抽象接口
+// ServiceRegistration 服务注册抽象接口（组合 Service + 注册信息）
 type ServiceRegistration interface {
 	Service
 	PublicAddress() string
@@ -38,7 +65,7 @@ type ServiceRegistration interface {
 	String() string
 }
 
-// Server 定义了一个tcp/websocket不同协议通用的服务端的接口
+// Server TCP/WebSocket 通用服务端接口
 type Server interface {
 	ServiceRegistration
 	// SetAcceptor 设置Acceptor

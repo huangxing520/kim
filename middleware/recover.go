@@ -1,3 +1,9 @@
+// 文件：recover.go
+// 职责：Panic 恢复中间件——捕获 handler 执行中的 panic，记录调用栈日志并返回系统异常响应。
+//
+// 方法：
+//   - Recover() → 返回一个 HandlerFunc 中间件，defer recover 捕获 panic 后记录调用栈并响应 SystemException
+
 package middleware
 
 import (
@@ -10,6 +16,7 @@ import (
 	"github.com/klintcheng/kim/wire/pkt"
 )
 
+// Recover 返回 panic 恢复中间件
 func Recover() kim.HandlerFunc {
 	return func(ctx kim.Context) {
 		defer func() {

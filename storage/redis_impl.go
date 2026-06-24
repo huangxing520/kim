@@ -1,3 +1,21 @@
+// 文件：redis_impl.go
+// 职责：Redis 会话存储实现——SessionStorage 接口的 Redis 实现，使用 Pipeline 优化批量写入。
+//
+// 常量：
+//   - LocationExpired：位置信息和 Session 的过期时间（48 小时）
+//
+// 定义的类型：
+//   - RedisStorage 结构体：基于 Redis 的 SessionStorage 实现
+//
+// 方法：
+//   - NewRedisStorage(cli)                        → 创建 RedisStorage
+//   - (RedisStorage).Add(session)                 → Pipeline 写入 location + session
+//   - (RedisStorage).Delete(account, channelId)    → Pipeline 删除 location + session
+//   - (RedisStorage).Get(channelId)                → 按 channelId 获取 Session
+//   - (RedisStorage).GetLocations(accounts...)     → MGet 批量查询用户位置（保持顺序，不在线的返回 nil）
+//   - (RedisStorage).GetLocation(account, device)  → 查询单个用户位置
+//   - (RedisStorage).RedisGet(key)                 → 通用 Redis GET
+
 package storage
 
 import (
@@ -10,10 +28,12 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// LocationExpired 位置和 Session 过期时间
 const (
 	LocationExpired = time.Hour * 48
 )
 
+// RedisStorage SessionStorage 的 Redis 实现
 type RedisStorage struct {
 	cli *redis.Client
 }

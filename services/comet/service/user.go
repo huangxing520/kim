@@ -1,3 +1,16 @@
+// 文件：user.go
+// 职责：用户 HTTP 服务客户端——通过 HTTP + protobuf 调用 Royal 服务的用户登录 API。
+//
+// 定义的类型：
+//   - User 接口：用户服务的抽象（Login）
+//   - UserHttp 结构体：基于 resty HTTP 客户端 + protobuf 序列化的远程调用实现
+//
+// 方法：
+//   - NewUserService(url)               → 创建 UserHttp（直连 URL）
+//   - NewUserServiceWithSRV(scheme, srv) → 创建 UserHttp（通过 Consul SRV 记录发现）
+//   - (UserHttp).Login(app, req)         → POST 调用用户登录 API
+//   - (UserHttp).Req()                   → 返回 resty.Request（支持直连或 SRV）
+
 package service
 
 import (
@@ -8,6 +21,7 @@ import (
 	"time"
 )
 
+// User 用户服务接口
 type User interface {
 	//Create(app string, req *rpc.CreateUserReq)  error
 	Login(app string, req *rpc.LoginReq) error

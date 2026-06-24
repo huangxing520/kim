@@ -1,3 +1,15 @@
+// 文件：server.go
+// 职责：Gateway 服务入口——Cobra 命令行启动 Gateway 服务，组装 Server、配置、Handler、路由选择器、服务发现等组件。
+//
+// 定义的类型：
+//   - ServerStartOptions 结构体：命令行启动参数（config / protocol / route）
+//
+// 方法：
+//   - NewServerStartCmd(ctx, version)       → 创建 gateway 子命令（Cobra）
+//   - RunServerStart(ctx, opts, version)     → 启动 Gateway：加载配置 → 初始化 logger → 创建 Handler → 创建 Server →
+//                                             设置 Acceptor/MessageListener/StateListener → Init container →
+//                                             注册 Consul Naming → 设置 Dialer/Selector → Start
+
 package gateway
 
 import (
@@ -27,6 +39,7 @@ type ServerStartOptions struct {
 	protocol string
 	route    string
 }
+
 // NewServerStartCmd creates a new http server command
 func NewServerStartCmd(ctx context.Context, version string) *cobra.Command {
 	opts := &ServerStartOptions{}
@@ -55,11 +68,11 @@ func RunServerStart(ctx context.Context, opts *ServerStartOptions, version strin
 		Filename:    "./data/gateway.log",
 		ServiceName: "gateway",
 		Kafka:       config.Kafka,
-	}); 
+	})
 	if err != nil {
 		return err
 	}
-	logger.GatewayLogger = log.Sugar();
+	logger.GatewayLogger = log.Sugar()
 
 	defer log.Close()
 
@@ -84,10 +97,13 @@ func RunServerStart(ctx context.Context, opts *ServerStartOptions, version strin
 	srvOpts := []kim.ServerOption{
 		kim.WithConnectionGPool(config.ConnectionGPool), kim.WithMessageGPool(config.MessageGPool),
 	}
-	if opts.protocol == "ws" {
+	switch opts.protocol {
+	case "ws":
 		srv = websocket.NewServer(config.Listen, service, srvOpts...)
-	} else if opts.protocol == "tcp" {
+	case "tcp":
 		srv = tcp.NewServer(config.Listen, service, srvOpts...)
+	default:
+		srv = websocket.NewServer(config.Listen, service, srvOpts...)
 	}
 
 	srv.SetReadWait(time.Minute * 2)

@@ -1,3 +1,27 @@
+// 文件：packet.go
+// 职责：LogicPkt 消息包定义——与客户端通信的标准消息包，包含 Header（protobuf）+ Body（可变载荷）+ Meta（键值对元数据），
+//       支持编解码、Header 选项函数式构建、Meta 读写。
+//
+// 定义的类型：
+//   - LogicPkt 结构体：逻辑消息包（Header + Body）
+//   - HeaderOption 函数类型：Header 的函数式选项
+//
+// 方法：
+//   - New(command, options...)                   → 创建 LogicPkt（自动生成 Sequence）
+//   - NewFrom(header)                             → 从已有 Header 创建 LogicPkt（复制 Header 字段，不含 Body/Meta）
+//   - (LogicPkt).Decode(r)                        → 从 io.Reader 解码 Header（protobuf）+ Body
+//   - (LogicPkt).Encode(w)                        → 将 Header + Body 编码写入 io.Writer
+//   - (LogicPkt).ReadBody(val)                    → 将 Body 反序列化为 protobuf 消息
+//   - (LogicPkt).WriteBody(val)                   → 将 protobuf 消息序列化到 Body
+//   - (LogicPkt).StringBody()                     → 返回 Body 的字符串表示
+//   - (LogicPkt).AddMeta(m...)                    → 追加 Meta 键值对
+//   - (LogicPkt).AddStringMeta(key, value)        → 追加字符串类型 Meta
+//   - (LogicPkt).GetMeta(key)                     → 按 key 查找 Meta 值（自动类型转换）
+//   - (LogicPkt).DelMeta(key)                     → 删除指定 key 的 Meta
+//   - (Header).ServiceName()                      → 从 Command 解析服务名（如 chat.user.talk → chat）
+//   - WithStatus / WithSeq / WithChannel / WithDest → HeaderOption 工厂函数
+//   - FindMeta(meta, key)                         → 在 Meta 切片中查找指定 key 的值
+
 package pkt
 
 import (
@@ -12,7 +36,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// LogicPkt 定义了网关对外的client消息结构
+// LogicPkt 网关对外的客户端消息结构
 type LogicPkt struct {
 	Header
 	Body []byte `json:"body,omitempty"`

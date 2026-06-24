@@ -1,3 +1,15 @@
+// 文件：chat_handler.go
+// 职责：聊天消息处理——处理单聊（UserTalk）、群聊（GroupTalk）、消息已读确认（TalkAck）。
+//
+// 定义的类型：
+//   - ChatHandler 结构体：聊天处理器（持有 Message service 和 Group service）
+//
+// 方法：
+//   - NewChatHandler(message, group)     → 创建 ChatHandler
+//   - (ChatHandler).DoUserTalk(ctx)       → 处理单聊：保存离线消息 → 对方在线则推送 → 返回消息 ID
+//   - (ChatHandler).DoGroupTalk(ctx)      → 处理群聊：保存离线消息 → 获取群成员 → 按成员推送
+//   - (ChatHandler).DoTalkAck(ctx)        → 处理消息已读确认：调用 SetAck
+
 package handler
 
 import (
@@ -10,8 +22,10 @@ import (
 	"github.com/klintcheng/kim/wire/rpc"
 )
 
+// ErrNoDestination 消息缺少目标
 var ErrNoDestination = errors.New("dest is empty")
 
+// ChatHandler 聊天处理器
 type ChatHandler struct {
 	msgService   service.Message
 	groupService service.Group

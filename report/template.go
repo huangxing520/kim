@@ -1,3 +1,11 @@
+// 文件：template.go
+// 职责：测试报告模板——压测结果报告的 text/template 模板及格式化辅助函数。
+//
+// 方法：
+//   - newTemplate()                  → 编译并返回报告模板
+//   - jsonify(v)                     → JSON 序列化辅助
+//   - formatNumber / formatNumberInt / histogram → 模板辅助函数（定义在 report.go 中）
+
 package report
 
 import (
@@ -6,6 +14,7 @@ import (
 	"text/template"
 )
 
+// defaultTmpl 默认报告模板
 var (
 	defaultTmpl = `
 Summary:

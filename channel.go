@@ -1,3 +1,21 @@
+// 文件：channel.go
+// 职责：Channel 连接实现——单个客户端连接的完整抽象，管理连接的读写生命周期。
+//
+// 定义的类型：
+//   - ChannelImpl 结构体：Channel 接口的实现，封装 Conn 连接、元数据、读写缓冲区和协程池
+//
+// 方法：
+//   - NewChannel(id, meta, conn, gpool)      → 创建新 Channel，启动后台写循环
+//   - (ChannelImpl).ID()                      → 获取 Channel 的唯一标识
+//   - (ChannelImpl).Conn()                    → 获取底层网络连接
+//   - (ChannelImpl).RemoteAddr()              → 获取对端地址
+//   - (ChannelImpl).Readloop(listener)        → 读循环：从 Conn 读帧 → 回调 MessageListener.Receive → 协程池处理
+//   - (ChannelImpl).writeloop()               → 写循环：从 writechan 取数据 → WriteFrame → Flush
+//   - (ChannelImpl).WriteFrame(code, payload) → 写一帧到 writechan（非阻塞）或直接写（阻塞）
+//   - (ChannelImpl).Close()                   → 关闭 Channel（设置关闭状态 + close writechan）
+//   - (ChannelImpl).SetReadWait(duration)     → 设置读超时
+//   - (ChannelImpl).SetWriteWait(duration)    → 设置写超时
+
 package kim
 
 import (
@@ -10,7 +28,7 @@ import (
 	"github.com/panjf2000/ants/v2"
 )
 
-// ChannelImpl is a websocket implement of channel
+// ChannelImpl Channel 接口的完整实现
 type ChannelImpl struct {
 	id string
 	Conn
@@ -25,9 +43,9 @@ type ChannelImpl struct {
 // NewChannel NewChannel
 func NewChannel(id string, meta Meta, conn Conn, gpool *ants.Pool) Channel {
 	ch := &ChannelImpl{
-		id:        id,
-		Conn:      conn,
-		meta:      meta,
+		id:   id,
+		Conn: conn,
+		meta: meta,
 		// 【修复#8】原代码 writechan: make(chan []byte, 5) 缓冲区过小
 		// 当服务端推送速度超过客户端接收速度时，Push 会阻塞，进而阻塞调用方
 		// 群聊消息风暴场景容易触发背压
@@ -64,21 +82,27 @@ func (ch *ChannelImpl) writeloop() error {
 		if err != nil {
 			return err
 		}
-		// 【修复#15】原代码 chanlen := len(ch.writechan) 在取出过程中可能变化
-		// 且原代码每次 WriteFrame 后没有统一 Flush，而 websocket 的 WriteFrame 内部已 flush
-		// 新加的：一次性取出当前缓冲区内的所有消息，批量写入后统一 Flush
-		// 这样可以减少系统调用次数，提升吞吐量
-		chanlen := len(ch.writechan)
-		for i := 0; i < chanlen; i++ {
-			payload = <-ch.writechan
-			err := ch.WriteFrame(OpBinary, payload)
-			if err != nil {
-				return err
+		// 【修复#15】批量取出缓冲区内的剩余消息，统一 Flush 减少系统调用次数
+		// WriteFrame 写入 bufio.Writer 缓冲区，Flush 才真正发送到网络
+		flushed := false
+		for !flushed {
+			select {
+			case payload, ok := <-ch.writechan:
+				if !ok {
+					// channel 已关闭，写入已缓冲的数据后退出
+					return ch.Flush()
+				}
+				err := ch.WriteFrame(OpBinary, payload)
+				if err != nil {
+					return err
+				}
+			default:
+				// 缓冲区已排空，统一 Flush
+				if err := ch.Flush(); err != nil {
+					return err
+				}
+				flushed = true
 			}
-		}
-		err = ch.Flush()
-		if err != nil {
-			return err
 		}
 	}
 	return nil

@@ -1,3 +1,20 @@
+// 文件：message.go
+// 职责：消息 HTTP 服务客户端——通过 HTTP + protobuf 调用 Royal 服务的消息 API（InsertUser/InsertGroup/SetAck/离线同步等）。
+//
+// 定义的类型：
+//   - Message 接口：消息服务的抽象（InsertUser / InsertGroup / SetAck / GetMessageIndex / GetMessageContent）
+//   - MessageHttp 结构体：基于 resty HTTP 客户端 + protobuf 序列化的远程调用实现
+//
+// 方法：
+//   - NewMessageService(url)              → 创建 MessageHttp（直连 URL）
+//   - NewMessageServiceWithSRV(scheme, srv)→ 创建 MessageHttp（通过 Consul SRV 记录发现）
+//   - (MessageHttp).InsertUser(app, req)   → POST 插入单聊消息
+//   - (MessageHttp).InsertGroup(app, req)  → POST 插入群聊消息
+//   - (MessageHttp).SetAck(app, req)       → POST 设置消息已读确认
+//   - (MessageHttp).GetMessageIndex(app, req)   → POST 获取离线消息索引
+//   - (MessageHttp).GetMessageContent(app, req) → POST 获取离线消息内容
+//   - (MessageHttp).Req()                  → 返回 resty.Request（支持直连或 SRV）
+
 package service
 
 import (
@@ -11,6 +28,7 @@ import (
 	"github.com/klintcheng/kim/wire/rpc"
 )
 
+// Message 消息服务接口
 type Message interface {
 	InsertUser(app string, req *rpc.InsertMessageReq) (*rpc.InsertMessageResp, error)
 	InsertGroup(app string, req *rpc.InsertMessageReq) (*rpc.InsertMessageResp, error)

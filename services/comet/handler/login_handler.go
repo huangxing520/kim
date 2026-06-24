@@ -1,3 +1,15 @@
+// 文件：login_handler.go
+// 职责：登录/登出处理——处理客户端 SignIn/SignOut，含用户验证、Session 管理、异地登录踢下线。
+//
+// 定义的类型：
+//   - LoginHandler 结构体：登录处理器（持有 User service）
+//
+// 方法：
+//   - NewLoginHandler(user)             → 创建 LoginHandler
+//   - (LoginHandler).DoSysLogin(ctx)     → 处理登录：验证用户 → 检查异地登录 → 踢下线 → 添加 Session → 返回成功
+//   - (LoginHandler).DoSysLogout(ctx)    → 处理登出：删除 Session → 返回成功
+//   - (LoginHandler).ValidUser(session, ctx) → 验证用户身份（AccessToken / Password 两种方式）
+
 package handler
 
 import (
@@ -9,6 +21,7 @@ import (
 	"github.com/klintcheng/kim/wire/rpc"
 )
 
+// LoginHandler 登录处理器
 type LoginHandler struct {
 	userService service.User
 }

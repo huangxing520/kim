@@ -1,3 +1,9 @@
+// 文件：user_handler.go
+// 职责：用户 HTTP API 处理器——处理用户登录（验证密码 + 签发 JWT AccessToken）。
+//
+// 方法（均为 ServiceHandler 的方法）：
+//   - Login(c) → POST 用户登录：查询用户 → 验证密码 → 生成 JWT → 缓存 AccessToken → 返回
+
 package handler
 
 import (

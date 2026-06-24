@@ -1,3 +1,17 @@
+// 文件：clients.go
+// 职责：管理到依赖服务的客户端连接集合——基于 sync.Map 的线程安全 ClientMap 实现。
+//
+// 定义的类型：
+//   - ClientMap 接口：客户端连接集合的抽象（Add / Remove / Get / Services）
+//   - ClientsImpl 结构体：sync.Map 包装，并发安全地管理 kim.Client 实例
+//
+// 方法：
+//   - NewClients()                          → 创建一个新的并发安全客户端集合
+//   - (ClientsImpl).Add(client)             → 添加一个客户端（以 client.ServiceID() 为 key）
+//   - (ClientsImpl).Remove(id)              → 移除指定 serviceID 的客户端
+//   - (ClientsImpl).Get(id)                 → 按 serviceID 获取客户端
+//   - (ClientsImpl).Services(kvs...)        → 返回全部服务列表；传可选 key=value 对可按 Meta 过滤
+
 package container
 
 import (
@@ -7,7 +21,7 @@ import (
 	"github.com/klintcheng/kim/logger"
 )
 
-// Clients Clients
+// ClientMap 客户端连接集合接口
 type ClientMap interface {
 	Add(client kim.Client)
 	Remove(id string)

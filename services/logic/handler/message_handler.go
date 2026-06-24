@@ -1,3 +1,16 @@
+// 文件：message_handler.go
+// 职责：消息 HTTP API 处理器——定义 ServiceHandler（Logic 服务的核心 Handler），处理单聊/群聊消息插入、已读确认、离线消息查询。
+//
+// 定义的类型：
+//   - ServiceHandler 结构体：Logic 服务核心 Handler（持有 BaseDb / MessageDb / Cache / Idgen）
+//
+// 方法：
+//   - (ServiceHandler).InsertUserMessage(c)   → POST 插入单聊消息（扩散写索引到双方）
+//   - (ServiceHandler).InsertGroupMessage(c)  → POST 插入群聊消息（扩散写索引到所有群成员）
+//   - (ServiceHandler).MessageAck(c)          → POST 消息已读确认（写入 Redis）
+//   - (ServiceHandler).GetOfflineMessageIndex(c)  → POST 查询离线消息索引
+//   - (ServiceHandler).GetOfflineMessageContent(c)→ POST 查询离线消息内容
+
 package handler
 
 import (
@@ -11,6 +24,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// ServiceHandler Logic 服务核心 Handler
 type ServiceHandler struct {
 	BaseDb    *gorm.DB
 	MessageDb *gorm.DB

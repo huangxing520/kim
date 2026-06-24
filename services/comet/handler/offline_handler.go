@@ -1,3 +1,14 @@
+// 文件：offline_handler.go
+// 职责：离线消息处理——处理离线消息索引同步和内容同步。
+//
+// 定义的类型：
+//   - OfflineHandler 结构体：离线消息处理器（持有 Message service）
+//
+// 方法：
+//   - NewOfflineHandler(message)        → 创建 OfflineHandler
+//   - (OfflineHandler).DoSyncIndex(ctx)  → 同步离线消息索引列表
+//   - (OfflineHandler).DoSyncContent(ctx)→ 按 messageId 列表同步离线消息内容
+
 package handler
 
 import (
@@ -9,6 +20,7 @@ import (
 	"github.com/klintcheng/kim/wire/rpc"
 )
 
+// OfflineHandler 离线消息处理器
 type OfflineHandler struct {
 	msgService service.Message
 }

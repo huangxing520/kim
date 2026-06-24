@@ -1,3 +1,44 @@
+// 文件：container.go
+// 职责：容器核心——编排服务的完整生命周期（初始化 → 启动 → 依赖连接 → 优雅关闭），
+//       以及消息的推送（Push）和转发（Forward）。
+//
+// 定义的类型：
+//   - Container：运行时容器，持有 Naming、Server、路由选择器、拨号器、依赖服务连接集合等核心组件
+//
+// 常量：
+//   - stateUninitialized / stateInitialized / stateStarted / stateClosed：容器生命周期状态机
+//   - StateYoung / StateAdult：新发现服务的两阶段状态（Young 不可路由，10s 后变为 Adult 可路由）
+//   - KeyServiceState：服务状态在 Meta 中的 key（已废弃，改用 serviceStateMap 线程安全方案）
+//
+// 方法（按调用时序排列）：
+//   - Default()                   → 获取默认容器单例
+//   - Init(srv, deps...)          → 初始化容器，绑定 Server 实例并记录所依赖的服务名列表
+//   - SetDialer(dialer)           → 设置 TCP 拨号器（用于与依赖服务建立连接）
+//   - SetSelector(selector)       → 设置路由选择器（决定消息转发到哪个服务节点）
+//   - SetServiceNaming(nm)        → 设置服务注册中心（Consul Naming 实现）
+//   - EnableMonitor(listen)       → 启动 HTTP 监控端点（/health 健康检查 + /metrics Prometheus 指标）
+//   - Start()                     → 启动完整生命周期：启动 Server → 连接依赖服务 → 服务注册 → 阻塞等待退出信号 → 优雅关闭
+//   - Push(server, packet)        → 将消息推送到指定 server 节点（设置 dest.server 后调用 Server.Push）
+//   - Forward(serviceName, packet)→ 将消息转发到指定服务类型的某个节点（通过默认选择器选择）
+//   - ForwardWithSelector(...)    → 使用指定选择器转发消息到目标服务节点
+//
+// 内部函数（不导出）：
+//   - shutdown()                  → 优雅关闭：Server.Shutdown → 注销服务 → 退订服务变更
+//   - lookup(serviceName, header, selector) → 从已连接服务中按选择器查找一个可用客户端
+//   - connectToService(serviceName)        → 订阅指定服务变更并建立到所有实例的 TCP 连接
+//   - buildClient(clients, service)        → 为单个服务实例创建 TCP 客户端并启动读循环
+//   - readLoop(cli)                        → 读取来自依赖服务的消息帧，解析后调用 pushMessage 推送
+//   - pushMessage(packet)                  → 将消息推送到本地 ChannelMap 中指定的 Channel 列表
+//   - setServiceState(service, state)      → 线程安全地设置服务状态（Young/Adult）
+//   - getServiceState(serviceID)           → 线程安全地读取服务状态
+//   - getBuildLock(serviceID)              → 获取或创建指定 serviceID 的专用构建锁（避免全局锁竞争）
+//
+// 全局变量（不导出）：
+//   - log               → 容器专用 logger
+//   - c                 → 默认容器单例
+//   - serviceStateMu + serviceStateMap → 服务状态的线程安全存储
+//   - buildLocksMu + buildLocks       → 每个 serviceID 的细粒度构建锁
+
 package container
 
 import (
@@ -136,7 +177,7 @@ func Start() error {
 		if err != nil {
 			return fmt.Errorf("server start failed: %w", err)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(2*time.Second):
 		// 服务器已成功启动，正在阻塞接收连接
 	}
 

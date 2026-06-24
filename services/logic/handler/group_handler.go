@@ -1,3 +1,13 @@
+// 文件：group_handler.go
+// 职责：群组 HTTP API 处理器——处理群组 Creation/Join/Quit/Members/Detail HTTP 请求。
+//
+// 方法（均为 ServiceHandler 的方法）：
+//   - GroupCreate(c)     → POST 创建群组（事务写 Group + GroupMember）
+//   - GroupJoin(c)       → POST 加入群组
+//   - GroupQuit(c)       → DELETE 退出群组
+//   - GroupMembers(c)    → GET 查询群成员列表
+//   - GroupDetail(c)     → GET 查询群详细信息
+
 package handler
 
 import (
@@ -10,7 +20,7 @@ import (
 	"gorm.io/gorm"
 )
 
-
+// GroupCreate 处理群组创建请求
 func (h *ServiceHandler) GroupCreate(c iris.Context) {
 	app := c.Params().Get("app")
 	var req rpc.CreateGroupReq

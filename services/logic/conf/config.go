@@ -1,3 +1,16 @@
+// 文件：config.go
+// 职责：Logic 配置加载——通过 Viper + envconfig 加载配置，提供 Redis 初始化、AccessLog 创建。
+//
+// 定义的类型：
+//   - Config 结构体：Logic 配置（ServiceID / NodeID / Listen / DB DSN / Redis 等）
+//
+// 方法：
+//   - Init(file)                                → 加载配置（YAML + 环境变量，自动生成 ServiceID 和 NodeID）
+//   - (Config).String()                         → JSON 序列化
+//   - InitRedis(addr, pass)                     → 初始化单机 Redis 客户端
+//   - InitFailoverRedis(master, sentinels, ...) → 初始化 Sentinel 哨兵模式 Redis
+//   - MakeAccessLog()                           → 创建 Iris AccessLog 中间件（记录 HTTP 请求日志）
+
 package conf
 
 import (
@@ -18,7 +31,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Config Config
+// Config Logic 服务配置
 type Config struct {
 	ServiceID     string
 	NodeID        int64

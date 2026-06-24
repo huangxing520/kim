@@ -1,3 +1,22 @@
+// 文件：client.go
+// 职责：TCP 客户端实现——基于自定义 TCP 帧协议的客户端，支持连接、读写、心跳、关闭。
+//
+// 定义的类型：
+//   - ClientOptions 结构体：客户端配置（心跳间隔、读写超时）
+//   - Client 结构体：TCP 客户端实现，组合 kim.Dialer，管理连接状态和读写
+//
+// 方法：
+//   - NewClient(id, name, opts)                       → 创建一个 TCP 客户端（空 Meta）
+//   - NewClientWithProps(id, name, meta, opts)         → 创建一个带 Meta 的 TCP 客户端
+//   - (Client).Connect(addr)                           → 拨号连接并握手，转换为 TcpConn，启动心跳（如配置）
+//   - (Client).SetDialer(dialer)                       → 设置握手拨号器
+//   - (Client).Send(payload)                           → 发送二进制消息：WriteFrame + Flush
+//   - (Client).Close()                                 → 优雅关闭：发送 Close 帧 → Flush → 关闭连接
+//   - (Client).Read()                                  → 读取一帧数据（支持读超时和 Close 帧检测）
+//   - (Client).ServiceID() / ServiceName() / GetMeta() → Service 接口实现
+//   - (Client).heartbeatloop()                         → 心跳循环：周期性发送 Ping
+//   - (Client).ping()                                  → 发送一个 Ping 帧
+
 package tcp
 
 import (
@@ -11,7 +30,7 @@ import (
 	"github.com/klintcheng/kim/logger"
 )
 
-// ClientOptions ClientOptions
+// ClientOptions TCP 客户端配置
 type ClientOptions struct {
 	Heartbeat time.Duration //登录超时
 	ReadWait  time.Duration //读超时
@@ -91,7 +110,7 @@ func (c *Client) SetDialer(dialer kim.Dialer) {
 	c.Dialer = dialer
 }
 
-//Send data to connection
+// Send data to connection
 func (c *Client) Send(payload []byte) error {
 	if atomic.LoadInt32(&c.state) == 0 {
 		return fmt.Errorf("connection is nil")

@@ -1,3 +1,17 @@
+// 文件：report.go
+// 职责：压测报告数据收集与生成——收集每次请求的耗时/状态码/错误，计算统计值并输出格式化报告。
+//
+// 定义的类型：
+//   - Result 结构体：单次请求结果（StatusCode / Err / Duration / ContentLength）
+//   - Report 结构体：报告数据收集器，计算 avg/rps/分布等统计值
+//
+// 方法：
+//   - New(w, n)                      → 创建 Report 收集器
+//   - (Report).Add(r)                → 添加单次结果
+//   - (Report).Finalize()            → 计算最终统计值
+//   - (Report).Print()               → 使用模板格式化输出报告
+//   - formatNumber / histogram 等    → 模板辅助格式化函数
+
 package report
 
 import (
@@ -10,6 +24,7 @@ import (
 	"time"
 )
 
+// Result 单次请求结果
 type Result struct {
 	StatusCode    int
 	Err           error

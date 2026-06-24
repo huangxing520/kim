@@ -1,3 +1,13 @@
+// 文件：config.go
+// 职责：Router 服务配置——通过 Viper + envconfig 加载 Router 配置。
+//
+// 定义的类型：
+//   - Config 结构体：Router 配置（Listen / ConsulURL / LogLevel / Kafka）
+//
+// 方法：
+//   - Init(file)       → 从 YAML + 环境变量加载配置
+//   - (Config).String() → JSON 序列化
+
 package conf
 
 import (
@@ -9,7 +19,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Config Config
+// Config Router 服务配置
 type Config struct {
 	Listen    string `default:":8100"`
 	ConsulURL string `default:"localhost:8500"`

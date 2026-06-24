@@ -1,3 +1,14 @@
+// 文件：server.go
+// 职责：Router 服务入口——Cobra 命令行启动区域路由服务，根据客户端 IP 返回最优网关域名列表。
+//
+// 定义的类型：
+//   - ServerStartOptions 结构体：命令行启动参数（config / data 路径）
+//
+// 方法：
+//   - NewServerStartCmd(ctx, version)   → 创建 router 子命令（Cobra）
+//   - RunServerStart(ctx, opts, version) → 启动 Router：加载配置 → 加载 IP 区域映射/区域权重 → 创建 Ip2region →
+//                                          创建 Consul Naming → 注册 /api/lookup/:token 路由 → Listen Iris
+
 package router
 
 import (

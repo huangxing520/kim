@@ -1,3 +1,21 @@
+// 文件：helper.go
+// 职责：大端序二进制读写辅助——提供 uint8~uint64、string、[]byte 的 Read/Write 函数，以及带长度前缀（uint32/uint16）的变长读写。
+//
+// 方法：
+//   - ReadUint8 / ReadUint16 / ReadUint32 / ReadUint64(r) → 从 io.Reader 读取固定宽度整数（大端序）
+//   - WriteUint8 / WriteUint16 / WriteUint32 / WriteUint64(w, val) → 写入固定宽度整数（大端序）
+//   - ReadString(r)                                          → 读取长度前缀（uint32）字符串
+//   - WriteString(w, str)                                    → 写入长度前缀（uint32）字符串
+//   - ReadBytes(r)                                           → 读取长度前缀（uint32）字节切片
+//   - WriteBytes(w, buf)                                     → 写入长度前缀（uint32）字节切片
+//   - ReadShortBytes(r)                                      → 读取长度前缀（uint16）字节切片
+//   - WriteShortBytes(w, buf)                                → 写入长度前缀（uint16）字节切片
+//   - ReadShortString(r)                                     → 读取长度前缀（uint16）字符串
+//   - ReadFixedBytes(len, r)                                 → 读取固定长度字节切片
+//
+// 全局变量：
+//   - Default = binary.BigEndian（默认使用大端字节序）
+
 // Copyright (c) 2013-2016 The btcsuite developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
@@ -9,6 +27,7 @@ import (
 	"io"
 )
 
+// Default 默认字节序（大端）
 var Default = binary.BigEndian
 
 // ReadUint8 从 reader 中读取一个 uint8

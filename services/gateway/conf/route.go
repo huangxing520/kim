@@ -1,18 +1,29 @@
+// 文件：route.go
+// 职责：路由配置加载——从 JSON 文件读取区域路由配置（Zone 权重分片、白名单），生成 Slots 哈希槽。
+//
+// 定义的类型：
+//   - Zone 结构体：区域定义（ID + 权重）
+//   - Route 结构体：路由配置（RouteBy / Zones / Whitelist / Slots 权重分片）
+//
+// 方法：
+//   - ReadRoute(path) → 从文件加载路由配置，生成权重分片 Slots 和白名单
+
 package conf
 
 import (
 	"encoding/json"
-	"io/ioutil"
-	
+	"os"
 
 	"github.com/klintcheng/kim/logger"
 )
 
+// Zone 区域定义（ID + 权重）
 type Zone struct {
 	ID     string
 	Weight int
 }
 
+// Route 路由配置（含权重分片和白名单）
 type Route struct {
 	RouteBy   string
 	Zones     []Zone
@@ -20,6 +31,7 @@ type Route struct {
 	Slots     []int
 }
 
+// ReadRoute 从 JSON 文件加载路由配置，生成权重分片
 func ReadRoute(path string) (*Route, error) {
 	var conf struct {
 		RouteBy   string `json:"route_by,omitempty"`
@@ -30,7 +42,7 @@ func ReadRoute(path string) (*Route, error) {
 		} `json:"whitelist,omitempty"`
 	}
 
-	bts, err := ioutil.ReadFile(path)
+	bts, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +60,7 @@ func ReadRoute(path string) (*Route, error) {
 	}
 	// build slots
 	for i, zone := range conf.Zones {
-		// 1.通过权重生成分片中的slots
+		// 1.通过权重生成分片中的slots 
 		shard := make([]int, zone.Weight)
 		// 2. 给当前slots设置值，指向索引i
 		for j := 0; j < zone.Weight; j++ {

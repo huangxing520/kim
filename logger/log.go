@@ -1,3 +1,31 @@
+// 文件：log.go
+// 职责：日志系统核心——基于 zap 的日志实现，支持文件滚动、控制台输出、Kafka 异步写入、多等级分类输出、
+//       SugaredLogger 包装（提供 Trace / WithField / WithFields / WithError 链式调用）。
+//
+// 导出的 Logger 变量：
+//   - CommonLogger / GatewayLogger / LogicLogger / CometLogger / RouterLogger：各服务的全局 logger（由各服务 Init 阶段设置）
+//
+// 定义的类型：
+//   - Fields：兼容旧 logrus 风格的字段 map
+//   - Settings：旧 API 兼容的日志初始化配置
+//   - Options：新式可选项模式的日志配置
+//   - Logger：日志实例，包装 zap.Logger，支持文件输出 + Kafka 写入
+//   - SugaredLogger：包装 zap.SugaredLogger，补全 Trace 方法
+//   - KafkaWriter：Kafka 异步生产者 io.Writer 适配
+//   - ModOptions：Options 的函数式选项类型
+//
+// 主要方法：
+//   - Init(s Settings)                         → 使用旧 API 创建 Logger 实例
+//   - NewLogger(mods...)                       → 使用新 API 创建 Logger 实例
+//   - (Logger).Close()                         → 关闭日志（同步 zap + 关闭 Kafka 生产者）
+//   - (Logger).Sugar()                         → 返回 SugaredLogger 用于链式调用
+//   - (SugaredLogger).Trace / Tracef           → 映射到 Debug（zap 无 Trace 等级）
+//   - (SugaredLogger).WithField / WithFields / WithError → 链式添加字段
+//   - (Logger).init() / setSyncers() / cores() → 内部初始化：创建文件/控制台/Kafka 的 zapcore.Core 组合
+//   - NewKafkaWriter(addrs, topic)             → 创建 Kafka Writer
+//   - SetMaxSize / SetLogFileDir / SetLevel 等 → 函数式选项工厂函数
+//   - timeEncoder / timeUnixNano / levelString → 辅助编码函数
+
 package logger
 
 import (
@@ -14,6 +42,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// 各服务专用的全局 Logger 变量（由各服务 Init 阶段赋值）
 var (
 	GatewayLogger *SugaredLogger
 	CommonLogger  *SugaredLogger

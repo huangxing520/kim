@@ -1,3 +1,28 @@
+// 文件：default_server.go
+// 职责：Server 接口的默认实现——基于 WebSocket/TCP 的网络服务端，管理连接的 Accept → Channel 创建 → 消息读写 → 断开清理的完整生命周期。
+//
+// 定义的类型：
+//   - Upgrader 接口：将原始 TCP 连接升级为 WebSocket Conn（协议握手）
+//   - ServerOptions 结构体：服务端配置（超时时间、协程池大小）
+//   - ServerOption 函数类型：ServerOptions 的函数式选项
+//   - DefaultServer 结构体：Server 接口的实现，组合 Upgrader / ServiceRegistration / ChannelMap / Acceptor / MessageListener / StateListener
+//   - defaultAcceptor 结构体：默认连接接收器实现（不鉴权，直接生成 ksuid 作为 channelID）
+//
+// 方法：
+//   - NewServer(listen, service, upgrader, options...)  → 创建 DefaultServer 实例
+//   - WithMessageGPool(val)                              → 选项函数：设置消息处理协程池大小
+//   - WithConnectionGPool(val)                           → 选项函数：设置连接处理协程池大小
+//   - (DefaultServer).Start()                            → 启动服务：监听端口 → Accept 循环 → connHandler 处理每个连接
+//   - (DefaultServer).Shutdown(ctx)                      → 优雅关闭：设置 quit 标志，关闭 ChannelMap 中所有连接
+//   - (DefaultServer).Push(channelId, payload)           → 向指定 Channel 推送消息
+//   - (DefaultServer).connHandler(rawconn, gpool)        → 处理单个连接：Upgrade → Accept → 创建 Channel → Readloop
+//   - (DefaultServer).SetAcceptor(acceptor)              → 设置连接接收器
+//   - (DefaultServer).SetMessageListener(listener)       → 设置消息监听器
+//   - (DefaultServer).SetStateListener(listener)         → 设置状态监听器
+//   - (DefaultServer).SetChannelMap(channels)            → 设置 Channel 管理器
+//   - (DefaultServer).SetReadWait(Readwait)              → 设置读超时
+//   - (defaultAcceptor).Accept(conn, timeout)            → 默认 Accept：直接返回 ksuid 作为 channelID
+
 package kim
 
 import (
@@ -17,6 +42,7 @@ import (
 	"github.com/segmentio/ksuid"
 )
 
+// Upgrader 协议升级器接口，将原始 TCP 连接升级为 WebSocket Conn
 type Upgrader interface {
 	Name() string
 	Upgrade(rawconn net.Conn, rd *bufio.Reader, wr *bufio.Writer) (Conn, error)
@@ -59,7 +85,7 @@ type DefaultServer struct {
 	quit    int32
 }
 
-// NewServer NewServer
+// NewServer 创建一个默认的服务器
 func NewServer(listen string, service ServiceRegistration, upgrader Upgrader, options ...ServerOption) *DefaultServer {
 	defaultOpts := &ServerOptions{
 		Loginwait:       DefaultLoginWait,
@@ -96,7 +122,7 @@ func (s *DefaultServer) Start() error {
 		return fmt.Errorf("StateListener is nil")
 	}
 	if s.ChannelMap == nil {
-		s.ChannelMap = NewChannels(100)
+		s.ChannelMap = NewChannels()
 	}
 	lst, err := net.Listen("tcp", s.listen)
 	if err != nil {

@@ -1,3 +1,14 @@
+// 文件：location.go
+// 职责：用户位置结构——定位用户所在的 gateway 和 channel，支持二进制序列化/反序列化。
+//
+// 定义的类型：
+//   - Location 结构体：包含 ChannelId 和 GateId，表示用户所在的网关和连接通道
+//
+// 方法：
+//   - (Location).Bytes()                     → 将 Location 序列化为二进制（大端序长度前缀 + 数据）
+//   - (Location).Unmarshal(data)             → 从二进制反序列化到 Location
+//   - appendShortBytes(buf, data)            → 内部辅助：将长度前缀（2字节大端）+ 数据追加到切片
+
 package kim
 
 import (
@@ -7,6 +18,7 @@ import (
 	"github.com/klintcheng/kim/wire/endian"
 )
 
+// Location 用户位置，包含所在的 gateway 和 channel
 type Location struct {
 	ChannelId string
 	GateId    string

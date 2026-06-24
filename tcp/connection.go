@@ -1,3 +1,19 @@
+// 文件：connection.go
+// 职责：TCP 连接和帧实现——封装自定义 TCP 帧协议（OpCode + Payload）和带缓冲的连接（TcpConn）。
+//
+// 定义的类型：
+//   - Frame 结构体：TCP 帧，包含 OpCode 和 Payload
+//   - TcpConn 结构体：带 bufio 缓冲的 TCP 连接，实现 kim.Conn 接口
+//
+// 方法：
+//   - (Frame).SetOpCode / GetOpCode / SetPayload / GetPayload → 帧操作码和负载的读写
+//   - NewConn(conn)                           → 创建一个带缓冲的 TcpConn（默认读写缓冲）
+//   - NewConnWithRW(conn, rd, wr)             → 使用指定读写缓冲创建 TcpConn
+//   - (TcpConn).ReadFrame()                   → 从 bufio.Reader 读取帧（1字节 OpCode + 长度前缀 Payload）
+//   - (TcpConn).WriteFrame(code, payload)     → 向 bufio.Writer 写入帧
+//   - (TcpConn).Flush()                       → 刷新缓冲写入
+//   - WriteFrame(w, code, payload)            → 通用帧写入函数：OpCode + 长度前缀 + Payload
+
 package tcp
 
 import (
@@ -9,7 +25,7 @@ import (
 	"github.com/klintcheng/kim/wire/endian"
 )
 
-// Frame Frame
+// Frame TCP 自定义帧（OpCode + Payload）
 type Frame struct {
 	OpCode  kim.OpCode
 	Payload []byte

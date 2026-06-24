@@ -1,3 +1,15 @@
+// 文件：server.go
+// 职责：Comet 服务入口——Cobra 命令行启动 Chat/Login 服务，组装 Router、Handler、Redis 缓存、服务发现等组件。
+//
+// 定义的类型：
+//   - ServerStartOptions 结构体：命令行启动参数（config / serviceName）
+//
+// 方法：
+//   - NewServerStartCmd(ctx, version)   → 创建 comet 子命令（Cobra）
+//   - RunServerStart(ctx, opts, version) → 启动 Comet：加载配置 → 初始化 logger → 创建 Router 并注册 Handler →
+//                                          初始化 Redis 缓存 → 创建 Server → Init container →
+//                                          注册 Consul Naming → Start
+
 package comet
 
 import (

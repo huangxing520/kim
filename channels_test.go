@@ -10,7 +10,7 @@ import (
 func Benchmark_ChannelsAdd(b *testing.B) {
 	ctrl := gomock.NewController(b)
 
-	chs := NewChannels(10)
+	chs := NewChannels()
 
 	b.ReportAllocs()
 	b.ResetTimer()

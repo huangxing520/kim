@@ -1,24 +1,45 @@
+// 文件：definitions.go
+// 职责：协议常量定义——消息命令字、Meta Key、服务名、协议类型、魔法数字、过期时间等全局常量。
+//
+// 常量分组：
+//   - Algorithm*：路由算法（目前仅 hashslots）
+//   - Command*：客户端与服务端之间的命令字（login.signin, chat.user.talk, chat.group.create 等）
+//   - MetaDest*：消息包 Meta 中的标准 key（dest.server / dest.channels）
+//   - Protocol*：通信协议类型常量（tcp / websocket）
+//   - SN*：各服务的唯一服务名常量（wgateway / tgateway / chat / royal）
+//   - Magic*：两种协议包的魔法数字（LogicPkt: 0xc311a365, BasicPkt: 0xc315a765）
+//   - Offline* / Message* / AccessToken*：离线消息、分页、Token 过期等业务参数
+//   - MessageType*：消息内容类型枚举（文本/图片/语音/视频）
+//
+// 类型：
+//   - Protocol 类型（string 别名）
+//   - ServiceID 类型（string 别名）
+//   - SessionID 类型（string 别名）
+//   - Magic 类型（[4]byte 别名）
+
 package wire
 
 import "time"
 
-// algorithm in routing
+// ---------- 路由算法 ----------
+
 const (
 	AlgorithmHashSlots = "hashslots"
 )
 
-// Command defined data type between client and server
+// ---------- 客户端命令字 ----------
+
 const (
-	// login
+	// 登录
 	CommandLoginSignIn  = "login.signin"
 	CommandLoginSignOut = "login.signout"
 
-	// chat
+	// 聊天
 	CommandChatUserTalk  = "chat.user.talk"
 	CommandChatGroupTalk = "chat.group.talk"
 	CommandChatTalkAck   = "chat.talk.ack"
 
-	// 离线
+	// 离线消息
 	CommandOfflineIndex   = "chat.offline.index"
 	CommandOfflineContent = "chat.offline.content"
 
@@ -30,11 +51,12 @@ const (
 	CommandGroupDetail  = "chat.group.detail"
 )
 
-// Meta Key of a packet
+// ---------- 消息包 Meta Key ----------
+
 const (
-	// 消息将要送达的网关的ServiceName
+	// MetaDestServer 消息目标网关的 ServiceName
 	MetaDestServer = "dest.server"
-	// 消息将要送达的channels
+	// MetaDestChannels 消息目标 Channel 列表
 	MetaDestChannels = "dest.channels"
 )
 

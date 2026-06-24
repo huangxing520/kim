@@ -1,3 +1,20 @@
+// 文件：handler.go
+// 职责：Gateway 业务处理器——实现 Acceptor / MessageListener / StateListener 接口，
+//       处理客户端登录鉴权、消息转发、断线登出。
+//
+// 常量：
+//   - MetaKeyApp / MetaKeyAccount：Meta 中的 App 和 Account key
+//
+// 定义的类型：
+//   - Handler 结构体：Gateway 业务处理器（持有 ServiceID 和 AppSecret）
+//
+// 方法：
+//   - (Handler).Accept(conn, timeout)    → 连接接收：读取登录包 → JWT 验证 → 生成 ChannelID → Forward 到 Login 服务
+//   - (Handler).Receive(ag, payload)     → 消息接收：Ping→Pong 处理 / LogicPkt Forward 到对应服务
+//   - (Handler).Disconnect(id)           → 连接断开：Forward SignOut 到 Login 服务
+//   - getIP(remoteAddr)                  → 从远程地址字符串中提取 IP（去掉端口）
+//   - generateChannelID(serviceID, account) → 生成全局唯一 ChannelID
+
 package serv
 
 import (
@@ -14,14 +31,13 @@ import (
 	"github.com/klintcheng/kim/wire/token"
 )
 
+// Meta Key 常量
 const (
 	MetaKeyApp     = "app"
 	MetaKeyAccount = "account"
 )
 
-
-
-// Handler Handler
+// Handler Gateway 业务处理器
 type Handler struct {
 	ServiceID string
 	AppSecret string
@@ -39,10 +55,10 @@ func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta
 	buf := bytes.NewBuffer(frame.GetPayload())
 	req, err := pkt.MustReadLogicPkt(buf)
 	if err != nil {
-		 logger.GatewayLogger.WithFields(logger.Fields{
-	"service": "gateway",
-	"pkg":     "serv",
-}).Error(err)
+		logger.GatewayLogger.WithFields(logger.Fields{
+			"service": "gateway",
+			"pkg":     "serv",
+		}).Error(err)
 		return "", nil, err
 	}
 	// 2. 必须是登录包
@@ -80,10 +96,10 @@ func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta
 	}
 	// 6. 生成一个全局唯一的ChannelID
 	id := generateChannelID(h.ServiceID, tk.Account)
-	 logger.GatewayLogger.WithFields(logger.Fields{
-	"service": "gateway",
-	"pkg":     "serv",
-}).Infof("accept %v channel:%s", tk, id)
+	logger.GatewayLogger.WithFields(logger.Fields{
+		"service": "gateway",
+		"pkg":     "serv",
+	}).Infof("accept %v channel:%s", tk, id)
 
 	req.ChannelId = id
 	req.WriteBody(&pkt.Session{
@@ -101,10 +117,10 @@ func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta
 	// 7. 把login.转发给Login服务
 	err = container.Forward(wire.SNLogin, req)
 	if err != nil {
-		 logger.GatewayLogger.WithFields(logger.Fields{
-	"service": "gateway",
-	"pkg":     "serv",
-}).Errorf("container.Forward :%v", err)
+		logger.GatewayLogger.WithFields(logger.Fields{
+			"service": "gateway",
+			"pkg":     "serv",
+		}).Errorf("container.Forward :%v", err)
 		return "", nil, err
 	}
 	return id, kim.Meta{
@@ -118,18 +134,13 @@ func (h *Handler) Receive(ag kim.Agent, payload []byte) {
 	buf := bytes.NewBuffer(payload)
 	packet, err := pkt.Read(buf)
 	if err != nil {
-		 logger.GatewayLogger.WithFields(logger.Fields{
-	"service": "gateway",
-	"pkg":     "serv",
-}).Error(err)
+		logger.GatewayLogger.WithFields(logger.Fields{
+			"service": "gateway",
+			"pkg":     "serv",
+		}).Error(err)
 		return
 	}
-	if basicPkt, ok := packet.(*pkt.BasicPkt); ok {
-		if basicPkt.Code == pkt.CodePing {
-			_ = ag.Push(pkt.Marshal(&pkt.BasicPkt{Code: pkt.CodePong}))
-		}
-		return
-	}
+
 	if logicPkt, ok := packet.(*pkt.LogicPkt); ok {
 		logicPkt.ChannelId = ag.ID()
 
@@ -157,10 +168,10 @@ func (h *Handler) Receive(ag kim.Agent, payload []byte) {
 
 // Disconnect default listener
 func (h *Handler) Disconnect(id string) error {
-	 logger.GatewayLogger.WithFields(logger.Fields{
-	"service": "gateway",
-	"pkg":     "serv",
-}).Infof("disconnect %s", id)
+	logger.GatewayLogger.WithFields(logger.Fields{
+		"service": "gateway",
+		"pkg":     "serv",
+	}).Infof("disconnect %s", id)
 
 	logout := pkt.New(wire.CommandLoginSignOut, pkt.WithChannel(id))
 	err := container.Forward(wire.SNLogin, logout)

@@ -1,3 +1,9 @@
+// 文件：main.go
+// 职责：KIM 统一入口——Cobra 命令行主程序，注册 gateway/comet/logic/router 四个子命令。
+//
+// 方法：
+//   - main() → 解析命令行参数，创建 root Cobra 命令，添加四个服务子命令后执行
+
 package main
 
 import (

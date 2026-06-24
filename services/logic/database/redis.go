@@ -1,3 +1,11 @@
+// 文件：redis.go
+// 职责：Redis 工具函数——提供消息已读索引的 Redis key 生成、Redis 连接初始化。
+//
+// 方法：
+//   - KeyMessageAckIndex(account)                           → 生成已读消息索引的 Redis key（chat:ack:{account}）
+//   - InitRedis(addr, pass)                                 → 初始化单机 Redis 客户端
+//   - InitFailoverRedis(master, sentinelAddrs, pass, timeout) → 初始化 Sentinel 哨兵模式 Redis 客户端
+
 package database
 
 import (
@@ -9,7 +17,7 @@ import (
 	"github.com/klintcheng/kim/logger"
 )
 
-// KeyMessageAckIndex return a redis key of the read index
+// KeyMessageAckIndex 生成已读消息索引的 Redis key
 func KeyMessageAckIndex(account string) string {
 	return fmt.Sprintf("chat:ack:%s", account)
 }

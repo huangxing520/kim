@@ -1,3 +1,23 @@
+// 文件：context.go
+// 职责：消息处理上下文——封装一次消息处理请求的全部信息，提供响应（Resp）和分发（Dispatch）能力。
+//
+// 定义的类型：
+//   - Session 接口：只读的客户端会话信息（ChannelId / GateId / Account / RemoteIP / App / Tags）
+//   - Context 接口：消息处理上下文，组合 Dispatcher + SessionStorage，提供 Header / ReadBody / Session / Resp / Dispatch / Next
+//   - HandlerFunc 类型：消息处理函数签名 func(Context)
+//   - HandlersChain 类型：处理函数链（切片）
+//   - ContextImpl 结构体：Context 的默认实现，持有 handlers 链、请求数据包和 Session
+//
+// 方法：
+//   - BuildContext()                              → 创建一个空的 ContextImpl
+//   - (ContextImpl).Next()                        → 执行 handlers 链中的下一个处理函数
+//   - (ContextImpl).RespWithError(status, err)    → 以错误消息格式响应客户端
+//   - (ContextImpl).Resp(status, body)            → 向消息发送者回复一条响应消息
+//   - (ContextImpl).Dispatch(body, recvs...)      → 将消息分发到指定的一组接收者（按 gateway 分组后分别推送）
+//   - (ContextImpl).Header()                      → 获取请求消息的 Header
+//   - (ContextImpl).ReadBody(val)                 → 将请求消息体反序列化到 protobuf 消息
+//   - (ContextImpl).Session()                     → 获取当前请求的 Session（若为 nil 则自动从请求 Meta 构造）
+
 package kim
 
 import (
@@ -8,7 +28,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// Session read only
+// Session 只读的客户端会话信息接口
 type Session interface {
 	GetChannelId() string
 	GetGateId() string
