@@ -44,7 +44,9 @@ func (s *CometServiceImpl) Forward(ctx context.Context, req *rpc.ForwardReq) (*r
 	}
 
 	logger.CometLogger.Debugf("recv a message from %s %s", session, &packet.Header)
-	_ = s.router.Serve(ctx, packet, s.pusher, s.cache, session)
+	if err := s.router.Serve(ctx, packet, s.pusher, s.cache, session); err != nil {
+		logger.CometLogger.Errorf("router serve error for channel=%s cmd=%s: %v", packet.ChannelId, packet.Command, err)
+	}
 	return &rpc.ForwardResp{Code: 0}, nil
 }
 
@@ -61,7 +63,9 @@ func (s *CometServiceImpl) respErr(ctx context.Context, p *pkt.LogicPkt, status 
 	if gateway == nil {
 		return
 	}
-	_ = s.pusher.Push(ctx, gateway.(string), []string{p.Header.ChannelId}, packet)
+	if err := s.pusher.Push(ctx, gateway.(string), []string{p.Header.ChannelId}, packet); err != nil {
+		logger.CometLogger.Errorf("push error response to gateway=%s channel=%s: %v", gateway, p.Header.ChannelId, err)
+	}
 }
 
 var _ rpc.CometServiceServer = (*CometServiceImpl)(nil)

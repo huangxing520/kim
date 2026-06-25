@@ -53,7 +53,9 @@ type Handler struct {
 func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta, error) {
 	defer util.Recover("gateway.Accept")
 	// 1. 读取登录包
-	_ = conn.SetReadDeadline(time.Now().Add(timeout))
+	if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+		logger.GatewayLogger.Warnf("set read deadline in Accept: %v", err)
+	}
 	frame, err := conn.ReadFrame()
 	if err != nil {
 		return "", nil, err
@@ -72,7 +74,9 @@ func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta
 	if req.Command != wire.CommandLoginSignIn {
 		resp := pkt.NewFrom(&req.Header)
 		resp.Status = pkt.Status_InvalidCommand
-		_ = conn.WriteFrame(kim.OpBinary, pkt.Marshal(resp))
+		if err := conn.WriteFrame(kim.OpBinary, pkt.Marshal(resp)); err != nil {
+			logger.GatewayLogger.Warnf("write error response in Accept: %v", err)
+		}
 		return "", nil, fmt.Errorf("must be a SignIn command")
 	}
 
