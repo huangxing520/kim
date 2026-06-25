@@ -30,7 +30,7 @@ PID_DIR         := .pid
 
 .PHONY: all build run-gateway run-comet run-logic run-router \
         stop-gateway stop-comet stop-logic stop-router stop-all \
-        run-all build-all clean deps fmt vet lint test \
+        run-all build-all clean deps fmt vet lint test test-unit test-integration \
         docker-up docker-down help
 
 # ==================== 默认目标 ====================
@@ -266,10 +266,18 @@ lint:
 	@echo "==> golangci-lint 检查..."
 	golangci-lint run ./...
 
-## test: 运行测试
-test:
-	@echo "==> 运行测试..."
-	$(GO) test -v ./...
+## test: 运行单元测试（默认跳过需要外部依赖的集成测试）
+test: test-unit
+
+## test-unit: 运行单元测试（无需 Docker/Redis/MySQL 等外部依赖）
+test-unit:
+	@echo "==> 运行单元测试..."
+	$(GO) test -v -race -count=1 ./...
+
+## test-integration: 运行集成测试（需要 Docker 启动 MySQL/Redis/Consul 等依赖）
+test-integration:
+	@echo "==> 运行集成测试（含外部依赖）..."
+	$(GO) test -v -race -count=1 -tags=integration ./...
 
 # ==================== Docker 依赖 ====================
 
@@ -345,8 +353,10 @@ help:
 	@echo "【代码质量】"
 	@echo "  fmt                格式化代码"
 	@echo "  vet                静态检查"
-	@echo "  test               运行测试"
-	@echo ""
+	@echo "  test               运行单元测试（跳过集成测试）"
+	@echo "  test-unit          运行单元测试（无需外部依赖）"
+	@echo "  test-integration   运行集成测试（需要 Docker 依赖）"
+	@echo "  lint               golangci-lint 检查"
 	@echo "【Docker 依赖】"
 	@echo "  docker-up          启动 MySQL/Redis/Consul 容器"
 	@echo "  docker-down        停止依赖容器"
