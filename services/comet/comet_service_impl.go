@@ -1,13 +1,3 @@
-// 文件：comet_service_impl.go
-// 职责：CometService gRPC 服务实现——实现 CometService.Forward 方法，
-//       接收 Gateway 转发的消息包，反序列化后通过 Router 分发到各 handler。
-//
-// 说明：
-//   - Forward 从 req.Packet 反序列化出 *pkt.LogicPkt
-//   - 登录命令从 packet Meta 构造 session；其他命令从 cache 获取 session
-//   - 通过 router.Serve 分发到 handler 链处理
-//   - respErr 将错误响应通过 pusher 推送回 gateway
-
 package comet
 
 import (
@@ -21,7 +11,6 @@ import (
 	"github.com/klintcheng/kim/wire/pkt"
 )
 
-// CometServiceImpl CometService gRPC 服务实现
 type CometServiceImpl struct {
 	rpc.UnimplementedCometServiceServer
 	router *kim.Router
@@ -29,7 +18,6 @@ type CometServiceImpl struct {
 	cache  kim.SessionStorage
 }
 
-// Forward 实现 CometService.Forward，接收 Gateway 转发的消息包并分发处理
 func (s *CometServiceImpl) Forward(ctx context.Context, req *rpc.ForwardReq) (*rpc.ForwardResp, error) {
 	packet, err := pkt.MustReadLogicPkt(bytes.NewBuffer(req.Packet))
 	if err != nil {
@@ -47,21 +35,23 @@ func (s *CometServiceImpl) Forward(ctx context.Context, req *rpc.ForwardReq) (*r
 	} else {
 		session, err = s.cache.Get(packet.ChannelId)
 		if err == kim.ErrSessionNil {
-			s.respErr(packet, pkt.Status_SessionNotFound)
+			s.respErr(context.Background(), packet, pkt.Status_SessionNotFound)
 			return &rpc.ForwardResp{Code: 0}, nil
 		} else if err != nil {
-			s.respErr(packet, pkt.Status_SystemException)
+			s.respErr(context.Background(), packet, pkt.Status_SystemException)
 			return &rpc.ForwardResp{Code: 0}, nil
 		}
 	}
 
 	logger.CometLogger.Debugf("recv a message from %s %s", session, &packet.Header)
-	_ = s.router.Serve(packet, s.pusher, s.cache, session)
+	_ = s.router.Serve(ctx, packet, s.pusher, s.cache, session)
 	return &rpc.ForwardResp{Code: 0}, nil
 }
 
-// respErr 向发送方回复错误响应
-func (s *CometServiceImpl) respErr(p *pkt.LogicPkt, status pkt.Status) {
+func (s *CometServiceImpl) respErr(ctx context.Context, p *pkt.LogicPkt, status pkt.Status) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	packet := pkt.NewFrom(&p.Header)
 	packet.Status = status
 	packet.Flag = pkt.Flag_Response
@@ -71,8 +61,7 @@ func (s *CometServiceImpl) respErr(p *pkt.LogicPkt, status pkt.Status) {
 	if gateway == nil {
 		return
 	}
-	_ = s.pusher.Push(gateway.(string), []string{p.Header.ChannelId}, packet)
+	_ = s.pusher.Push(ctx, gateway.(string), []string{p.Header.ChannelId}, packet)
 }
 
-// 编译时断言：CometServiceImpl 实现 rpc.CometServiceServer 接口
 var _ rpc.CometServiceServer = (*CometServiceImpl)(nil)

@@ -37,7 +37,7 @@ func (h *GroupHandler) DoCreate(ctx kim.Context) {
 		_ = ctx.RespWithError(pkt.Status_InvalidPacketBody, err)
 		return
 	}
-	resp, err := h.groupService.Create(ctx.Session().GetApp(), &rpc.CreateGroupReq{
+	resp, err := h.groupService.Create(ctx.StdContext(), ctx.Session().GetApp(), &rpc.CreateGroupReq{
 		Name:         req.GetName(),
 		Avatar:       req.GetAvatar(),
 		Introduction: req.GetIntroduction(),
@@ -77,7 +77,7 @@ func (h *GroupHandler) DoJoin(ctx kim.Context) {
 		_ = ctx.RespWithError(pkt.Status_InvalidPacketBody, err)
 		return
 	}
-	err := h.groupService.Join(ctx.Session().GetApp(), &rpc.JoinGroupReq{
+	err := h.groupService.Join(ctx.StdContext(), ctx.Session().GetApp(), &rpc.JoinGroupReq{
 		Account: req.Account,
 		GroupId: req.GetGroupId(),
 	})
@@ -95,7 +95,7 @@ func (h *GroupHandler) DoQuit(ctx kim.Context) {
 		_ = ctx.RespWithError(pkt.Status_InvalidPacketBody, err)
 		return
 	}
-	err := h.groupService.Quit(ctx.Session().GetApp(), &rpc.QuitGroupReq{
+	err := h.groupService.Quit(ctx.StdContext(), ctx.Session().GetApp(), &rpc.QuitGroupReq{
 		Account: req.Account,
 		GroupId: req.GetGroupId(),
 	})
@@ -112,14 +112,14 @@ func (h *GroupHandler) DoDetail(ctx kim.Context) {
 		_ = ctx.RespWithError(pkt.Status_InvalidPacketBody, err)
 		return
 	}
-	resp, err := h.groupService.Detail(ctx.Session().GetApp(), &rpc.GetGroupReq{
+	resp, err := h.groupService.Detail(ctx.StdContext(), ctx.Session().GetApp(), &rpc.GetGroupReq{
 		GroupId: req.GetGroupId(),
 	})
 	if err != nil {
 		_ = ctx.RespWithError(pkt.Status_SystemException, err)
 		return
 	}
-	membersResp, err := h.groupService.Members(ctx.Session().GetApp(), &rpc.GroupMembersReq{
+	membersResp, err := h.groupService.Members(ctx.StdContext(), ctx.Session().GetApp(), &rpc.GroupMembersReq{
 		GroupId: req.GetGroupId(),
 	})
 	if err != nil {

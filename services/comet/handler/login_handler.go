@@ -97,7 +97,7 @@ func (h *LoginHandler) ValidUser(session *pkt.Session, ctx kim.Context) error {
 		}
 		return nil
 	} else if session.Password != "" {
-		err := h.userService.Login(ctx.Session().GetApp(), &rpc.LoginReq{
+		err := h.userService.Login(ctx.StdContext(), ctx.Session().GetApp(), &rpc.LoginReq{
 			Account:  session.Account,
 			Password: session.Password,
 		})

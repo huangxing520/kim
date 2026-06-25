@@ -21,7 +21,8 @@
 package kim
 
 import (
-	// 【修复#6】去掉原 "sync" 导入，ContextImpl 不再嵌入未使用的 sync.Mutex
+	"context"
+
 	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/pkt"
@@ -48,6 +49,8 @@ type Context interface {
 	Resp(status pkt.Status, body proto.Message) error
 	Dispatch(body proto.Message, recvs ...*Location) error
 	Next()
+	StdContext() context.Context
+	WithStdContext(ctx context.Context) Context
 }
 
 // HandlerFunc defines the handler used
@@ -56,9 +59,7 @@ type HandlerFunc func(Context)
 // HandlersChain HandlersChain
 type HandlersChain []HandlerFunc
 
-// ContextImpl is the most important part of kim
 type ContextImpl struct {
-	// 【修复#6】去掉原 sync.Mutex 嵌入字段，原代码从未使用过该锁，属于冗余字段
 	Dispatcher
 	SessionStorage
 
@@ -66,10 +67,25 @@ type ContextImpl struct {
 	index    int
 	request  *pkt.LogicPkt
 	session  Session
+	stdCtx   context.Context
 }
 
 func BuildContext() Context {
-	return &ContextImpl{}
+	return &ContextImpl{
+		stdCtx: context.Background(),
+	}
+}
+
+func (c *ContextImpl) StdContext() context.Context {
+	if c.stdCtx == nil {
+		return context.Background()
+	}
+	return c.stdCtx
+}
+
+func (c *ContextImpl) WithStdContext(ctx context.Context) Context {
+	c.stdCtx = ctx
+	return c
 }
 
 // Next execute next handler
@@ -99,7 +115,7 @@ func (c *ContextImpl) Resp(status pkt.Status, body proto.Message) error {
 	packet.Flag = pkt.Flag_Response
 	logger.CommonLogger.Debugf("<-- Resp to %s command:%s  status: %v body: %s", c.Session().GetAccount(), &c.request.Header, status, body)
 
-	err := c.Push(c.Session().GetGateId(), []string{c.Session().GetChannelId()}, packet)
+	err := c.Push(c.StdContext(), c.Session().GetGateId(), []string{c.Session().GetChannelId()}, packet)
 	if err != nil {
 		logger.CommonLogger.Error(err)
 	}
@@ -140,7 +156,7 @@ func (c *ContextImpl) Dispatch(body proto.Message, recvs ...*Location) error {
 	// 新加的：聚合所有 gateway 的推送错误，全部推送完成后返回第一个错误
 	var firstErr error // 新加的：记录第一个出现的错误
 	for gateway, ids := range group {
-		err := c.Push(gateway, ids, packet)
+		err := c.Push(c.StdContext(), gateway, ids, packet)
 		if err != nil {
 			logger.CommonLogger.Error(err)
 			if firstErr == nil { // 新加的：仅记录第一个错误，不中断后续 gateway 推送
@@ -156,6 +172,7 @@ func (c *ContextImpl) reset() {
 	c.index = 0
 	c.handlers = nil
 	c.session = nil
+	c.stdCtx = nil
 }
 
 func (c *ContextImpl) Header() *pkt.Header {

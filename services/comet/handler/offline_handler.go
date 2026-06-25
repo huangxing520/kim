@@ -37,7 +37,7 @@ func (h *OfflineHandler) DoSyncIndex(ctx kim.Context) {
 		_ = ctx.RespWithError(pkt.Status_InvalidPacketBody, err)
 		return
 	}
-	resp, err := h.msgService.GetMessageIndex(ctx.Session().GetApp(), &rpc.GetOfflineMessageIndexReq{
+	resp, err := h.msgService.GetMessageIndex(ctx.StdContext(), ctx.Session().GetApp(), &rpc.GetOfflineMessageIndexReq{
 		Account:   ctx.Session().GetAccount(),
 		MessageId: req.GetMessageId(),
 	})
@@ -70,7 +70,7 @@ func (h *OfflineHandler) DoSyncContent(ctx kim.Context) {
 		_ = ctx.RespWithError(pkt.Status_InvalidPacketBody, errors.New("empty MessageIds"))
 		return
 	}
-	resp, err := h.msgService.GetMessageContent(ctx.Session().GetApp(), &rpc.GetOfflineMessageContentReq{
+	resp, err := h.msgService.GetMessageContent(ctx.StdContext(), ctx.Session().GetApp(), &rpc.GetOfflineMessageContentReq{
 		MessageIds: req.MessageIds,
 	})
 	if err != nil {

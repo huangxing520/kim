@@ -18,6 +18,7 @@
 package kim
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -57,13 +58,15 @@ func (r *Router) Handle(command string, handlers ...HandlerFunc) {
 	r.handlers.Add(command, handlers...)
 }
 
-// Serve a packet from client
-func (r *Router) Serve(packet *pkt.LogicPkt, dispatcher Dispatcher, cache SessionStorage, session Session) error {
+func (r *Router) Serve(serveCtx context.Context, packet *pkt.LogicPkt, dispatcher Dispatcher, cache SessionStorage, session Session) error {
 	if dispatcher == nil {
 		return fmt.Errorf("dispatcher is nil")
 	}
 	if cache == nil {
 		return fmt.Errorf("cache is nil")
+	}
+	if serveCtx == nil {
+		serveCtx = context.Background()
 	}
 	ctx := r.pool.Get().(*ContextImpl)
 	ctx.reset()
@@ -71,9 +74,9 @@ func (r *Router) Serve(packet *pkt.LogicPkt, dispatcher Dispatcher, cache Sessio
 	ctx.Dispatcher = dispatcher
 	ctx.SessionStorage = cache
 	ctx.session = session
+	ctx.stdCtx = serveCtx
 
 	r.serveContext(ctx)
-	// Put Context to Pool
 	r.pool.Put(ctx)
 	return nil
 }

@@ -19,6 +19,7 @@ package serv
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -37,9 +38,8 @@ const (
 	MetaKeyAccount = "account"
 )
 
-// Forwarder 消息转发器接口（由 gateway.CometForwarder 实现，避免循环引用）
 type Forwarder interface {
-	Forward(p *pkt.LogicPkt) error
+	Forward(ctx context.Context, p *pkt.LogicPkt) error
 }
 
 // Handler Gateway 业务处理器
@@ -121,8 +121,7 @@ func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta
 	req.AddStringMeta(MetaKeyApp, tk.App)
 	req.AddStringMeta(MetaKeyAccount, tk.Account)
 
-	// 7. 把login.转发给Login服务
-	err = h.Forwarder.Forward(req)
+	err = h.Forwarder.Forward(context.Background(), req)
 	if err != nil {
 		logger.GatewayLogger.WithFields(logger.Fields{
 			"service": "gateway",
@@ -161,7 +160,7 @@ func (h *Handler) Receive(ag kim.Agent, payload []byte) {
 			logicPkt.AddStringMeta(MetaKeyAccount, ag.GetMeta()[MetaKeyAccount])
 		}
 
-		err = h.Forwarder.Forward(logicPkt)
+		err = h.Forwarder.Forward(context.Background(), logicPkt)
 		if err != nil {
 			logger.GatewayLogger.WithFields(logger.Fields{
 				"module": "handler",
@@ -183,7 +182,7 @@ func (h *Handler) Disconnect(id string) error {
 	}).Infof("disconnect %s", id)
 
 	logout := pkt.New(wire.CommandLoginSignOut, pkt.WithChannel(id))
-	err := h.Forwarder.Forward(logout)
+	err := h.Forwarder.Forward(context.Background(), logout)
 	if err != nil {
 		logger.GatewayLogger.WithFields(logger.Fields{
 			"module": "handler",
