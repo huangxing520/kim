@@ -18,7 +18,7 @@ import (
 	"github.com/kataras/iris/v12"
 	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/internal/naming"
-	"github.com/klintcheng/kim/services/router/apis"
+	"github.com/klintcheng/kim/services/router/handler"
 	"github.com/klintcheng/kim/services/router/conf"
 	"github.com/klintcheng/kim/services/router/ipregion"
 )
@@ -77,7 +77,7 @@ func New(ctx context.Context, cfg *Config, dataPath string) (*Server, error) {
 	}
 
 	// 5. 组装 RouterApi
-	routerAPI := apis.RouterApi{
+	routerAPI := handler.RouterApi{
 		Naming:   ns,
 		IpRegion: region,
 		Config: conf.Router{

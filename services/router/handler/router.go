@@ -13,7 +13,7 @@
 //   - selectIdc(token, region)      → 按 token 哈希选择 Region 下的 IDC
 //   - selectGateways(token, gw, n)  → 按 token 哈希选择 n 个不重复的网关
 
-package apis
+package handler
 
 import (
 	"fmt"

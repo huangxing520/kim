@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/klintcheng/kim/gen/rpc"
-	"github.com/klintcheng/kim/services/logic/database"
+	"github.com/klintcheng/kim/services/logic/data"
 	"github.com/segmentio/ksuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -14,9 +14,9 @@ import (
 var handler ServiceHandler
 
 func init() {
-	baseDb, _ := database.InitDb("mysql", "root:123456@tcp(127.0.0.1:3306)/kim_base?charset=utf8mb4&parseTime=True&loc=Local")
-	messageDb, _ := database.InitDb("mysql", "root:123456@tcp(127.0.0.1:3306)/kim_message?charset=utf8mb4&parseTime=True&loc=Local")
-	idgen, _ := database.NewIDGenerator(1)
+	baseDb, _ := data.InitDb("mysql", "root:123456@tcp(127.0.0.1:3306)/kim_base?charset=utf8mb4&parseTime=True&loc=Local")
+	messageDb, _ := data.InitDb("mysql", "root:123456@tcp(127.0.0.1:3306)/kim_message?charset=utf8mb4&parseTime=True&loc=Local")
+	idgen, _ := data.NewIDGenerator(1)
 	handler = ServiceHandler{
 		MessageDb: messageDb,
 		BaseDb:    baseDb,

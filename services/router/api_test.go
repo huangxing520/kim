@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/klintcheng/kim/services/router/apis"
+	"github.com/klintcheng/kim/services/router/handler"
 	"github.com/segmentio/ksuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -22,7 +22,7 @@ func Test_Lookup(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		url := fmt.Sprintf("http://localhost:8100/api/lookup/%s", ksuid.New().String())
 
-		var res apis.LookUpResp
+		var res handler.LookUpResp
 		resp, err := cli.R().SetResult(&res).Get(url)
 		assert.Equal(t, http.StatusOK, resp.StatusCode())
 		assert.Nil(t, err)

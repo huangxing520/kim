@@ -24,7 +24,7 @@ import (
 	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/internal/server"
 	"github.com/klintcheng/kim/internal/trace"
-	"github.com/klintcheng/kim/services/gateway/serv"
+	gwhandler "github.com/klintcheng/kim/services/gateway/handler"
 	"github.com/klintcheng/kim/tcp"
 	"github.com/klintcheng/kim/websocket"
 	"github.com/klintcheng/kim/wire"
@@ -81,7 +81,7 @@ func New(ctx context.Context, cfg *Config, routePath string, protocol string) (*
 	}
 
 	// 3. 路由选择器
-	selector, err := serv.NewRouteSelector(routePath)
+	selector, err := gwhandler.NewRouteSelector(routePath)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func New(ctx context.Context, cfg *Config, routePath string, protocol string) (*
 	forwarder := NewCometForwarder(ns, selector, cfg.ServiceID, cfg.Resilience, cfg.GRPC)
 
 	// 5. WS/TCP 接入层
-	handler := &serv.Handler{
+	handler := &gwhandler.Handler{
 		ServiceID: cfg.ServiceID,
 		AppSecret: cfg.AppSecret,
 		Forwarder: forwarder,

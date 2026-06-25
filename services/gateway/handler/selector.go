@@ -11,7 +11,7 @@
 //   - selectSrvs(srvs, account)                      → 在服务列表中按 account 哈希选择节点
 //   - hashcode(key)                                  → CRC32 哈希函数
 
-package serv
+package handler
 
 import (
 	"hash/crc32"

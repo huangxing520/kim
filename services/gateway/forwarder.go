@@ -9,7 +9,7 @@ import (
 	"github.com/klintcheng/kim/internal/client"
 	"github.com/klintcheng/kim/internal/config"
 	"github.com/klintcheng/kim/internal/naming"
-	"github.com/klintcheng/kim/services/gateway/serv"
+	"github.com/klintcheng/kim/services/gateway/handler"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/pkt"
 )
@@ -17,12 +17,12 @@ import (
 type CometForwarder struct {
 	ns        naming.Naming
 	pool      *client.Pool
-	selector  *serv.RouteSelector
+	selector  *handler.RouteSelector
 	gatewayID string
 	cfg       config.ResilienceConfig
 }
 
-func NewCometForwarder(ns naming.Naming, selector *serv.RouteSelector, gatewayID string, cfg config.ResilienceConfig, grpcCfg config.GRPCConfig) *CometForwarder {
+func NewCometForwarder(ns naming.Naming, selector *handler.RouteSelector, gatewayID string, cfg config.ResilienceConfig, grpcCfg config.GRPCConfig) *CometForwarder {
 	return &CometForwarder{
 		ns:        ns,
 		pool:      client.NewPoolWithConfig(ns, wire.SNChat, cfg, grpcCfg),
@@ -67,4 +67,4 @@ func (f *CometForwarder) Close() {
 	f.pool.Close()
 }
 
-var _ serv.Forwarder = (*CometForwarder)(nil)
+var _ handler.Forwarder = (*CometForwarder)(nil)

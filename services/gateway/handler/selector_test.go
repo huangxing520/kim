@@ -1,4 +1,4 @@
-package serv
+package handler
 
 import (
 	"testing"

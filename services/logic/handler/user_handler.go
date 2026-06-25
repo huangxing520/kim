@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/klintcheng/kim/gen/rpc"
-	"github.com/klintcheng/kim/services/logic/database"
+	"github.com/klintcheng/kim/services/logic/data"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/token"
 	"golang.org/x/crypto/bcrypt"
@@ -17,8 +17,8 @@ import (
 var AppSecret string
 
 func (h *ServiceHandler) Login(ctx context.Context, req *rpc.LoginReq) (*rpc.LoginResp, error) {
-	var user database.User
-	err := h.BaseDb.Model(&database.User{}).Where("account = ?", req.Account).First(&user).Error
+	var user data.User
+	err := h.BaseDb.Model(&data.User{}).Where("account = ?", req.Account).First(&user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("account not found")

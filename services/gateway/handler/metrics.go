@@ -6,7 +6,7 @@
 //   - messageInFlowBytes：CounterVec，按同维度统计网关接收消息字节总数
 //   - noServerFoundErrorTotal：CounterVec，按 zone 维度统计查找分区服务失败的次数
 
-package serv
+package handler
 
 import (
 	"github.com/prometheus/client_golang/prometheus"

@@ -16,7 +16,7 @@ import (
 
 	"github.com/bwmarrin/snowflake"
 	"github.com/klintcheng/kim/gen/rpc"
-	"github.com/klintcheng/kim/services/logic/database"
+	"github.com/klintcheng/kim/services/logic/data"
 	"gorm.io/gorm"
 )
 
@@ -31,8 +31,8 @@ func (h *ServiceHandler) GroupCreate(ctx context.Context, req *rpc.CreateGroupRe
 
 func (h *ServiceHandler) groupCreate(req *rpc.CreateGroupReq) (snowflake.ID, error) {
 	groupId := h.Idgen.Next()
-	g := &database.Group{
-		Model: database.Model{
+	g := &data.Group{
+		Model: data.Model{
 			ID: groupId.Int64(),
 		},
 		App:          req.App,
@@ -42,10 +42,10 @@ func (h *ServiceHandler) groupCreate(req *rpc.CreateGroupReq) (snowflake.ID, err
 		Owner:        req.Owner,
 		Introduction: req.Introduction,
 	}
-	members := make([]database.GroupMember, len(req.Members))
+	members := make([]data.GroupMember, len(req.Members))
 	for i, user := range req.Members {
-		members[i] = database.GroupMember{
-			Model: database.Model{
+		members[i] = data.GroupMember{
+			Model: data.Model{
 				ID: h.Idgen.Next().Int64(),
 			},
 			Account: user,
@@ -71,8 +71,8 @@ func (h *ServiceHandler) groupCreate(req *rpc.CreateGroupReq) (snowflake.ID, err
 }
 
 func (h *ServiceHandler) GroupJoin(ctx context.Context, req *rpc.JoinGroupReq) (*rpc.GroupMembersResp, error) {
-	gm := &database.GroupMember{
-		Model: database.Model{
+	gm := &data.GroupMember{
+		Model: data.Model{
 			ID: h.Idgen.Next().Int64(),
 		},
 		Account: req.Account,
@@ -86,11 +86,11 @@ func (h *ServiceHandler) GroupJoin(ctx context.Context, req *rpc.JoinGroupReq) (
 }
 
 func (h *ServiceHandler) GroupQuit(ctx context.Context, req *rpc.QuitGroupReq) (*rpc.GroupMembersResp, error) {
-	gm := &database.GroupMember{
+	gm := &data.GroupMember{
 		Account: req.Account,
 		Group:   req.GroupId,
 	}
-	err := h.BaseDb.Delete(&database.GroupMember{}, gm).Error
+	err := h.BaseDb.Delete(&data.GroupMember{}, gm).Error
 	if err != nil {
 		return nil, err
 	}
@@ -102,8 +102,8 @@ func (h *ServiceHandler) GroupMembers(ctx context.Context, req *rpc.GroupMembers
 	if group == "" {
 		return nil, errors.New("group is null")
 	}
-	var members []database.GroupMember
-	err := h.BaseDb.Order("Updated_At asc").Find(&members, database.GroupMember{Group: group}).Error
+	var members []data.GroupMember
+	err := h.BaseDb.Order("Updated_At asc").Find(&members, data.GroupMember{Group: group}).Error
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func (h *ServiceHandler) GroupGet(ctx context.Context, req *rpc.GetGroupReq) (*r
 	if err != nil {
 		return nil, errors.New("group is invalid:" + groupId)
 	}
-	var group database.Group
+	var group data.Group
 	err = h.BaseDb.First(&group, id.Int64()).Error
 	if err != nil {
 		return nil, err

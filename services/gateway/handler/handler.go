@@ -15,7 +15,7 @@
 //   - getIP(remoteAddr)                  → 从远程地址字符串中提取 IP（去掉端口）
 //   - generateChannelID(serviceID, account) → 生成全局唯一 ChannelID
 
-package serv
+package handler
 
 import (
 	"bytes"

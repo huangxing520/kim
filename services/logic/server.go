@@ -27,7 +27,7 @@ import (
 	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/internal/server"
 	"github.com/klintcheng/kim/internal/trace"
-	"github.com/klintcheng/kim/services/logic/database"
+	"github.com/klintcheng/kim/services/logic/data"
 	"github.com/klintcheng/kim/services/logic/handler"
 	"github.com/klintcheng/kim/wire"
 )
@@ -64,26 +64,26 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}()
 
 	// 初始化 DB
-	baseDb, err := database.InitDb(cfg.Driver, cfg.BaseDb)
+	baseDb, err := data.InitDb(cfg.Driver, cfg.BaseDb)
 	if err != nil {
 		return nil, err
 	}
-	messageDb, err := database.InitDb(cfg.Driver, cfg.MessageDb)
+	messageDb, err := data.InitDb(cfg.Driver, cfg.MessageDb)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := baseDb.AutoMigrate(&database.Group{}, &database.GroupMember{}, &database.User{}); err != nil {
+	if err := baseDb.AutoMigrate(&data.Group{}, &data.GroupMember{}, &data.User{}); err != nil {
 		return nil, fmt.Errorf("auto migrate base db: %w", err)
 	}
-	if err := messageDb.AutoMigrate(&database.MessageIndex{}, &database.MessageContent{}); err != nil {
+	if err := messageDb.AutoMigrate(&data.MessageIndex{}, &data.MessageContent{}); err != nil {
 		return nil, fmt.Errorf("auto migrate message db: %w", err)
 	}
 
 	if cfg.NodeID == 0 {
 		cfg.NodeID = int64(HashCode(cfg.ServiceID))
 	}
-	idgen, err := database.NewIDGenerator(cfg.NodeID)
+	idgen, err := data.NewIDGenerator(cfg.NodeID)
 	if err != nil {
 		return nil, err
 	}

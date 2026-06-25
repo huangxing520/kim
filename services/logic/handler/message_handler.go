@@ -20,7 +20,7 @@ import (
 
 	"github.com/go-redis/redis/v7"
 	"github.com/klintcheng/kim/gen/rpc"
-	"github.com/klintcheng/kim/services/logic/database"
+	"github.com/klintcheng/kim/services/logic/data"
 	"github.com/klintcheng/kim/wire"
 	"gorm.io/gorm"
 )
@@ -31,7 +31,7 @@ type ServiceHandler struct {
 	BaseDb    *gorm.DB
 	MessageDb *gorm.DB
 	Cache     *redis.Client
-	Idgen     *database.IDGenerator
+	Idgen     *data.IDGenerator
 }
 
 func (h *ServiceHandler) InsertUserMessage(ctx context.Context, req *rpc.InsertMessageReq) (*rpc.InsertMessageResp, error) {
@@ -44,7 +44,7 @@ func (h *ServiceHandler) InsertUserMessage(ctx context.Context, req *rpc.InsertM
 
 func (h *ServiceHandler) insertUserMessage(req *rpc.InsertMessageReq) (int64, error) {
 	messageId := h.Idgen.Next().Int64()
-	messageContent := database.MessageContent{
+	messageContent := data.MessageContent{
 		ID:       messageId,
 		Type:     byte(req.Message.Type),
 		Body:     req.Message.Body,
@@ -52,8 +52,8 @@ func (h *ServiceHandler) insertUserMessage(req *rpc.InsertMessageReq) (int64, er
 		SendTime: req.SendTime,
 	}
 	// 扩散写
-	idxs := make([]database.MessageIndex, 2)
-	idxs[0] = database.MessageIndex{
+	idxs := make([]data.MessageIndex, 2)
+	idxs[0] = data.MessageIndex{
 		ID:        h.Idgen.Next().Int64(),
 		MessageID: messageId,
 		AccountA:  req.Dest,
@@ -61,7 +61,7 @@ func (h *ServiceHandler) insertUserMessage(req *rpc.InsertMessageReq) (int64, er
 		Direction: 0,
 		SendTime:  req.SendTime,
 	}
-	idxs[1] = database.MessageIndex{
+	idxs[1] = data.MessageIndex{
 		ID:        h.Idgen.Next().Int64(),
 		MessageID: messageId,
 		AccountA:  req.Sender,
@@ -96,15 +96,15 @@ func (h *ServiceHandler) InsertGroupMessage(ctx context.Context, req *rpc.Insert
 func (h *ServiceHandler) insertGroupMessage(req *rpc.InsertMessageReq) (int64, error) {
 	messageId := h.Idgen.Next().Int64()
 
-	var members []database.GroupMember
-	err := h.BaseDb.Where(&database.GroupMember{Group: req.Dest}).Find(&members).Error
+	var members []data.GroupMember
+	err := h.BaseDb.Where(&data.GroupMember{Group: req.Dest}).Find(&members).Error
 	if err != nil {
 		return 0, err
 	}
 
 	const maxBatchSize = 1000
 
-	messageContent := database.MessageContent{
+	messageContent := data.MessageContent{
 		ID:       messageId,
 		Type:     byte(req.Message.Type),
 		Body:     req.Message.Body,
@@ -123,9 +123,9 @@ func (h *ServiceHandler) insertGroupMessage(req *rpc.InsertMessageReq) (int64, e
 		}
 		batch := members[i:end]
 
-		idxs := make([]database.MessageIndex, len(batch))
+		idxs := make([]data.MessageIndex, len(batch))
 		for j, m := range batch {
-			idxs[j] = database.MessageIndex{
+			idxs[j] = data.MessageIndex{
 				ID:        h.Idgen.Next().Int64(),
 				MessageID: messageId,
 				AccountA:  m.Account,
@@ -162,7 +162,7 @@ func setMessageAck(cache *redis.Client, account string, msgId int64) error {
 	if msgId == 0 {
 		return nil
 	}
-	key := database.KeyMessageAckIndex(account)
+	key := data.KeyMessageAckIndex(account)
 	return cache.Set(key, msgId, wire.OfflineReadIndexExpiresIn).Err()
 }
 
@@ -174,7 +174,7 @@ func (h *ServiceHandler) GetOfflineMessageIndex(ctx context.Context, req *rpc.Ge
 	}
 
 	var indexes []*rpc.MessageIndex
-	tx := h.MessageDb.Model(&database.MessageIndex{}).Select("send_time", "account_b", "direction", "message_id", "group")
+	tx := h.MessageDb.Model(&data.MessageIndex{}).Select("send_time", "account_b", "direction", "message_id", "group")
 	err = tx.Where("account_a=? and send_time>? and direction=?", req.Account, start, 0).Order("send_time asc").Limit(wire.OfflineSyncIndexCount).Find(&indexes).Error
 	if err != nil {
 		return nil, err
@@ -189,13 +189,13 @@ func (h *ServiceHandler) GetOfflineMessageIndex(ctx context.Context, req *rpc.Ge
 func (h *ServiceHandler) getSentTime(account string, msgId int64) (int64, error) {
 	// 1. 冷启动情况，从服务端拉取消息索引
 	if msgId == 0 {
-		key := database.KeyMessageAckIndex(account)
+		key := data.KeyMessageAckIndex(account)
 		msgId, _ = h.Cache.Get(key).Int64() // 如果一次都没有发ack包，这里就是0
 	}
 	var start int64
 	if msgId > 0 {
 		// 2.根据消息ID读取此条消息的发送时间。
-		var content database.MessageContent
+		var content data.MessageContent
 		err := h.MessageDb.Select("send_time").First(&content, msgId).Error
 		if err != nil {
 			//3.如果此条消息不存在，返回最近一天
@@ -218,7 +218,7 @@ func (h *ServiceHandler) GetOfflineMessageContent(ctx context.Context, req *rpc.
 		return nil, fmt.Errorf("too many MessageIds")
 	}
 	var contents []*rpc.Message
-	err := h.MessageDb.Model(&database.MessageContent{}).Where(req.MessageIds).Find(&contents).Error
+	err := h.MessageDb.Model(&data.MessageContent{}).Where(req.MessageIds).Find(&contents).Error
 	if err != nil {
 		return nil, err
 	}
