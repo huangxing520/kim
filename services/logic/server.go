@@ -141,6 +141,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}); err != nil {
 		return nil, fmt.Errorf("register logic service: %w", err)
 	}
+	grpcSrv.SetReady()
 
 	s := &Server{
 		config:        cfg,
@@ -160,7 +161,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 func (s *Server) Start(ctx context.Context) error {
 	monitorAddr := fmt.Sprintf(":%d", s.config.MonitorPort)
 	go func() {
-		if err := server.StartMonitorHTTP(monitorAddr); err != nil {
+		if err := server.StartMonitorHTTPWithReady(monitorAddr, s.grpcSrv); err != nil {
 			logger.LogicLogger.Errorf("monitor http error: %v", err)
 		}
 	}()

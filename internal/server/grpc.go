@@ -2,6 +2,7 @@ package server
 
 import (
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/klintcheng/kim/internal/config"
@@ -13,13 +14,13 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-// GRPCServer 封装 gRPC server，提供统一的拦截器、健康检查、反射
 type GRPCServer struct {
 	*grpc.Server
-	addr string
+	addr         string
+	HealthServer *health.Server
+	ready        atomic.Bool
 }
 
-// Option 函数式选项
 type Option func(*options)
 
 type options struct {
@@ -27,17 +28,14 @@ type options struct {
 	limiter     config.LimiterConfig
 }
 
-// WithServiceName 设置服务名（用于日志和指标）
 func WithServiceName(name string) Option {
 	return func(o *options) { o.serviceName = name }
 }
 
-// WithLimiter 设置限流配置
 func WithLimiter(cfg config.LimiterConfig) Option {
 	return func(o *options) { o.limiter = cfg }
 }
 
-// NewGRPCServer 创建 gRPC server
 func NewGRPCServer(addr string, opts ...Option) (*GRPCServer, error) {
 	o := &options{
 		limiter: config.DefaultResilienceConfig().Limiter,
@@ -46,8 +44,6 @@ func NewGRPCServer(addr string, opts ...Option) (*GRPCServer, error) {
 		opt(o)
 	}
 
-	// 构建拦截器链：recovery → otel(trace) → logging → metrics → limiter
-	// trace 紧跟 Recovery 之后，确保日志/指标阶段已有 span context
 	chain := UnaryChain(
 		RecoveryInterceptor,
 		UnaryInterceptor(otelgrpc.UnaryServerInterceptor()),
@@ -65,18 +61,29 @@ func NewGRPCServer(addr string, opts ...Option) (*GRPCServer, error) {
 		}),
 	)
 
-	// gRPC Health Protocol
 	hs := health.NewServer()
-	hs.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	hs.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
 	healthpb.RegisterHealthServer(s, hs)
 
-	// 反射（grpcurl 调试用）
 	reflection.Register(s)
 
-	return &GRPCServer{Server: s, addr: addr}, nil
+	return &GRPCServer{Server: s, addr: addr, HealthServer: hs}, nil
 }
 
-// Start 启动 gRPC server（阻塞）
+func (s *GRPCServer) SetReady() {
+	s.ready.Store(true)
+	s.HealthServer.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+}
+
+func (s *GRPCServer) SetNotReady() {
+	s.ready.Store(false)
+	s.HealthServer.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
+}
+
+func (s *GRPCServer) IsReady() bool {
+	return s.ready.Load()
+}
+
 func (s *GRPCServer) Start() error {
 	lis, err := net.Listen("tcp", s.addr)
 	if err != nil {
