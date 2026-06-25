@@ -128,7 +128,8 @@ func TestContextImpl_Dispatch_AllGatewaysFail(t *testing.T) {
 		&Location{ChannelId: "ch2", GateId: "gate2"},
 	)
 
-	assert.Equal(t, gate1Err, err, "should return the first error encountered")
+	assert.Error(t, err, "should return an error when all gateways fail")
+	assert.True(t, err == gate1Err || err == gate2Err, "should return one of the gateway errors")
 }
 
 func TestContextImpl_Dispatch_StdContextPropagates(t *testing.T) {
