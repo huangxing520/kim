@@ -21,6 +21,7 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -50,6 +51,7 @@ type Report struct {
 	total       time.Duration
 	sizeTotal   int64
 	w           io.Writer
+	wg          sync.WaitGroup
 }
 
 func New(w io.Writer, n int) *Report {
@@ -65,6 +67,7 @@ func New(w io.Writer, n int) *Report {
 		errorDist:   make(map[string]int),
 		statusCodes: make([]int, 0, cap),
 	}
+	r.wg.Add(1)
 	go r.start()
 
 	return r
@@ -76,6 +79,7 @@ func (r *Report) Add(res *Result) {
 
 func (r *Report) Finalize(total time.Duration) {
 	close(r.results)
+	r.wg.Wait()
 
 	r.total = total
 	r.rps = float64(r.numRes) / r.total.Seconds()
@@ -84,7 +88,7 @@ func (r *Report) Finalize(total time.Duration) {
 }
 
 func (r *Report) start() {
-	// Loop will continue until channel is closed
+	defer r.wg.Done()
 	for res := range r.results {
 		r.numRes++
 		if res.Err != nil {
