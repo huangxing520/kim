@@ -23,6 +23,7 @@ import (
 	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/internal/server"
+	"github.com/klintcheng/kim/internal/trace"
 	"github.com/klintcheng/kim/services/gateway/serv"
 	"github.com/klintcheng/kim/tcp"
 	"github.com/klintcheng/kim/websocket"
@@ -31,13 +32,14 @@ import (
 
 // Server Gateway 服务实例
 type Server struct {
-	config    *Config
-	routePath string
-	protocol  string
-	wsSrv     kim.Server         // 客户端接入（WS/TCP）
-	grpcSrv   *server.GRPCServer // 接收 Comet Push
-	forwarder *CometForwarder    // gRPC client 调用 Comet
-	naming    naming.Naming
+	config        *Config
+	routePath     string
+	protocol      string
+	wsSrv         kim.Server         // 客户端接入（WS/TCP）
+	grpcSrv       *server.GRPCServer // 接收 Comet Push
+	forwarder     *CometForwarder    // gRPC client 调用 Comet
+	naming        naming.Naming
+	traceShutdown func()
 }
 
 // New 创建 Gateway 服务实例
@@ -64,6 +66,12 @@ func New(ctx context.Context, cfg *Config, routePath string, protocol string) (*
 	// 2.5 初始化 Sentinel（断路器 + 限流器）
 	if err := client.InitSentinel(); err != nil {
 		logger.GatewayLogger.Warnf("init sentinel (resilience disabled): %v", err)
+	}
+
+	// 2.6 初始化链路追踪
+	traceShutdown, err := trace.InitTrace("gateway", cfg.Trace)
+	if err != nil {
+		logger.GatewayLogger.Warnf("init trace (disabled): %v", err)
 	}
 
 	// 3. 路由选择器
@@ -135,13 +143,14 @@ func New(ctx context.Context, cfg *Config, routePath string, protocol string) (*
 	_ = ns.Register(grpcService)
 
 	return &Server{
-		config:    cfg,
-		routePath: routePath,
-		protocol:  protocol,
-		wsSrv:     wsSrv,
-		grpcSrv:   grpcSrv,
-		forwarder: forwarder,
-		naming:    ns,
+		config:        cfg,
+		routePath:     routePath,
+		protocol:      protocol,
+		wsSrv:         wsSrv,
+		grpcSrv:       grpcSrv,
+		forwarder:     forwarder,
+		naming:        ns,
+		traceShutdown: traceShutdown,
 	}, nil
 }
 
@@ -166,5 +175,9 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 	s.forwarder.Close()
 	s.grpcSrv.GracefulStop()
-	return s.wsSrv.Shutdown(ctx)
+	err := s.wsSrv.Shutdown(ctx)
+	if s.traceShutdown != nil {
+		s.traceShutdown()
+	}
+	return err
 }

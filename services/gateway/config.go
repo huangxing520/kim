@@ -16,24 +16,25 @@ import (
 
 // Config Gateway 服务配置
 type Config struct {
-	ServiceID       string              `mapstructure:"service_id"`
-	ServiceName     string              `mapstructure:"service_name"`
-	Listen          string              `mapstructure:"listen"`
-	GRPCListen      string              `mapstructure:"grpc_listen"`
-	GRPCPort        int                 `mapstructure:"grpc_port"`
-	PublicAddress   string              `mapstructure:"public_address"`
-	PublicPort      int                 `mapstructure:"public_port"`
-	Tags            []string            `mapstructure:"tags"`
-	Domain          string              `mapstructure:"domain"`
-	ConsulURL       string              `mapstructure:"consul_url"`
-	MonitorPort     int                 `mapstructure:"monitor_port"`
-	AppSecret       string              `mapstructure:"app_secret"`
-	LogLevel        string              `mapstructure:"log_level"`
-	MessageGPool    int                 `mapstructure:"message_g_pool"`
-	ConnectionGPool int                 `mapstructure:"connection_g_pool"`
-	Protocol        string              `mapstructure:"protocol"`
-	Kafka           model.KafkaSettings `mapstructure:"kafka"`
+	ServiceID       string                  `mapstructure:"service_id"`
+	ServiceName     string                  `mapstructure:"service_name"`
+	Listen          string                  `mapstructure:"listen"`
+	GRPCListen      string                  `mapstructure:"grpc_listen"`
+	GRPCPort        int                     `mapstructure:"grpc_port"`
+	PublicAddress   string                  `mapstructure:"public_address"`
+	PublicPort      int                     `mapstructure:"public_port"`
+	Tags            []string                `mapstructure:"tags"`
+	Domain          string                  `mapstructure:"domain"`
+	ConsulURL       string                  `mapstructure:"consul_url"`
+	MonitorPort     int                     `mapstructure:"monitor_port"`
+	AppSecret       string                  `mapstructure:"app_secret"`
+	LogLevel        string                  `mapstructure:"log_level"`
+	MessageGPool    int                     `mapstructure:"message_g_pool"`
+	ConnectionGPool int                     `mapstructure:"connection_g_pool"`
+	Protocol        string                  `mapstructure:"protocol"`
+	Kafka           model.KafkaSettings     `mapstructure:"kafka"`
 	Resilience      config.ResilienceConfig `mapstructure:"resilience"`
+	Trace           config.TraceConfig      `mapstructure:"trace"`
 }
 
 // LoadConfig 从指定路径加载配置
@@ -64,6 +65,17 @@ func LoadConfig(path string) (*Config, error) {
 	defaults := config.DefaultResilienceConfig()
 	if !cfg.Resilience.Breaker.Enable {
 		cfg.Resilience = defaults
+	}
+	// 合并追踪配置默认值（不覆盖 Enable，仅填充缺失字段）
+	traceDefaults := config.DefaultTraceConfig()
+	if cfg.Trace.Exporter == "" {
+		cfg.Trace.Exporter = traceDefaults.Exporter
+	}
+	if cfg.Trace.Endpoint == "" {
+		cfg.Trace.Endpoint = traceDefaults.Endpoint
+	}
+	if cfg.Trace.SamplingRatio == 0 {
+		cfg.Trace.SamplingRatio = traceDefaults.SamplingRatio
 	}
 	return &cfg, nil
 }

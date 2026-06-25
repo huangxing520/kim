@@ -50,6 +50,7 @@ func TestReadPkt(t *testing.T) {
 		Value: "test1,test2",
 	})
 	buf := new(bytes.Buffer)
+	buf.Write(wire.MagicLogicPkt[:]) // Read 期望先读 magic
 	_ = packet.Encode(buf)
 
 	t.Log(buf.Bytes())
@@ -57,8 +58,8 @@ func TestReadPkt(t *testing.T) {
 	//
 
 	got, err := Read(buf)
-	p := got.(*LogicPkt)
 	assert.Nil(t, err)
+	p := got.(*LogicPkt)
 	assert.Equal(t, wire.CommandLoginSignIn, p.Command)
 	assert.Equal(t, seq, p.Sequence)
 	assert.Equal(t, Status_Success, p.Status)

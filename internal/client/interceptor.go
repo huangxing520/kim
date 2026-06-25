@@ -9,13 +9,15 @@ import (
 	sentinel "github.com/alibaba/sentinel-golang/api"
 	"github.com/klintcheng/kim/internal/config"
 	"github.com/klintcheng/kim/internal/metrics"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 )
 
-// InterceptorChain 构造客户端拦截器链：timeout → resilience(breaker+limiter)
-// 顺序：最外层是 timeout（包裹整个调用），resilience 内部一次 Entry 同时处理断路器和限流
+// InterceptorChain 构造客户端拦截器链：trace → timeout → resilience(breaker+limiter)
+// 顺序：trace 最外层（让 timeout/breaker 内部错误也落入 span），timeout 包裹整个调用，resilience 内部一次 Entry 同时处理断路器和限流
 func InterceptorChain(serviceName, instanceID string, cfg config.ResilienceConfig) []grpc.UnaryClientInterceptor {
 	return []grpc.UnaryClientInterceptor{
+		otelgrpc.UnaryClientInterceptor(),
 		timeoutInterceptor(cfg.Timeout),
 		resilienceInterceptor(serviceName, instanceID, cfg.Breaker, cfg.Limiter),
 	}

@@ -4,12 +4,20 @@ import (
 	"testing"
 
 	"github.com/klintcheng/kim"
+	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/pkt"
 	"github.com/segmentio/ksuid"
 	"github.com/stretchr/testify/assert"
 )
+
+func init() {
+	// 测试环境下 GatewayLogger 未初始化，复用 CommonLogger 避免 nil panic
+	if logger.GatewayLogger == nil {
+		logger.GatewayLogger = logger.CommonLogger
+	}
+}
 
 func TestRouteSelector_Lookup(t *testing.T) {
 

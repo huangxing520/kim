@@ -198,7 +198,7 @@ func (r *Report) print() {
 		log.Println("error:", err.Error())
 		return
 	}
-	r.printf(buf.String())
+	r.printf("%s", buf.String())
 
 	r.printf("\n")
 }

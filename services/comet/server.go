@@ -23,6 +23,7 @@ import (
 	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/internal/server"
+	"github.com/klintcheng/kim/internal/trace"
 	"github.com/klintcheng/kim/middleware"
 	"github.com/klintcheng/kim/services/comet/handler"
 	"github.com/klintcheng/kim/services/comet/service"
@@ -32,11 +33,12 @@ import (
 
 // Server Comet gRPC 服务
 type Server struct {
-	config    *Config
-	grpcSrv   *server.GRPCServer
-	naming    naming.Naming
-	logicPool *client.Pool
-	gwPool    *client.Pool
+	config        *Config
+	grpcSrv       *server.GRPCServer
+	naming        naming.Naming
+	logicPool     *client.Pool
+	gwPool        *client.Pool
+	traceShutdown func()
 }
 
 // New 创建 Comet 服务实例
@@ -70,6 +72,12 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	// 3.5 初始化 Sentinel（断路器 + 限流器）
 	if err := client.InitSentinel(); err != nil {
 		logger.CometLogger.Warnf("init sentinel (resilience disabled): %v", err)
+	}
+
+	// 3.6 初始化链路追踪
+	traceShutdown, err := trace.InitTrace("comet", cfg.Trace)
+	if err != nil {
+		logger.CometLogger.Warnf("init trace (disabled): %v", err)
 	}
 
 	// 4. gRPC client pool（挂载弹性拦截器）
@@ -133,11 +141,12 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	})
 
 	return &Server{
-		config:    cfg,
-		grpcSrv:   grpcSrv,
-		naming:    ns,
-		logicPool: logicPool,
-		gwPool:    gwPool,
+		config:        cfg,
+		grpcSrv:       grpcSrv,
+		naming:        ns,
+		logicPool:     logicPool,
+		gwPool:        gwPool,
+		traceShutdown: traceShutdown,
 	}, nil
 }
 
@@ -155,6 +164,9 @@ func (s *Server) Stop(ctx context.Context) error {
 	s.gwPool.Close()
 	s.logicPool.Close()
 	s.grpcSrv.GracefulStop()
+	if s.traceShutdown != nil {
+		s.traceShutdown()
+	}
 	return nil
 }
 

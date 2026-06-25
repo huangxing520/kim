@@ -1,0 +1,36 @@
+# golangci-lint 配置
+run:
+  timeout: 5m
+  go: "1.26"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - ineffassign
+    - unused
+    - misspell
+    - gosimple
+
+linters-settings:
+  errcheck:
+    # 允许 _ 忽略错误
+    exclude-functions:
+      - (io.Closer).Close
+
+issues:
+  # 排除自动生成的 protobuf 代码
+  exclude-rules:
+    - path: wire/pkt/.*\.pb\.go
+      linters: [all]
+    - path: gen/.*\.pb\.go
+      linters: [all]
+    - path: _test\.go
+      linters:
+        - errcheck
+  # 已知问题的临时豁免（login_handler.go 的 protobuf 锁复制）
+  exclude-dirs:
+    - wire/pkt
+  max-issues-per-linter: 0
+  max-same-issues: 0

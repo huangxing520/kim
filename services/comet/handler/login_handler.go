@@ -43,7 +43,7 @@ func (h *LoginHandler) DoSysLogin(ctx kim.Context) {
 
 	log.Infof("do login of %v ", session.String())
 
-	err := h.ValidUser(session, ctx)
+	err := h.ValidUser(&session, ctx)
 	if err != nil {
 		_ = ctx.RespWithError(pkt.Status_SystemException, err)
 
@@ -89,7 +89,7 @@ func (h *LoginHandler) DoSysLogout(ctx kim.Context) {
 
 	_ = ctx.Resp(pkt.Status_Success, nil)
 }
-func (h *LoginHandler) ValidUser(session pkt.Session, ctx kim.Context) error {
+func (h *LoginHandler) ValidUser(session *pkt.Session, ctx kim.Context) error {
 	if session.AccessToken != "" {
 		result, _ := ctx.RedisGet(session.Account)
 		if result != session.AccessToken {

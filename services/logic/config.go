@@ -20,6 +20,7 @@ type Config struct {
 	LogLevel      string              `mapstructure:"log_level"`
 	Kafka         model.KafkaSettings `mapstructure:"kafka"`
 	Resilience    config.ResilienceConfig `mapstructure:"resilience"`
+	Trace         config.TraceConfig `mapstructure:"trace"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -40,6 +41,17 @@ func LoadConfig(path string) (*Config, error) {
 	defaults := config.DefaultResilienceConfig()
 	if !cfg.Resilience.Breaker.Enable {
 		cfg.Resilience = defaults
+	}
+	// 合并追踪配置默认值（不覆盖 Enable，仅填充缺失字段）
+	traceDefaults := config.DefaultTraceConfig()
+	if cfg.Trace.Exporter == "" {
+		cfg.Trace.Exporter = traceDefaults.Exporter
+	}
+	if cfg.Trace.Endpoint == "" {
+		cfg.Trace.Endpoint = traceDefaults.Endpoint
+	}
+	if cfg.Trace.SamplingRatio == 0 {
+		cfg.Trace.SamplingRatio = traceDefaults.SamplingRatio
 	}
 	return &cfg, nil
 }

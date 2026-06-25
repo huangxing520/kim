@@ -25,6 +25,7 @@ import (
 	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/internal/server"
+	"github.com/klintcheng/kim/internal/trace"
 	"github.com/klintcheng/kim/services/logic/database"
 	"github.com/klintcheng/kim/services/logic/handler"
 	"github.com/klintcheng/kim/wire"
@@ -32,9 +33,10 @@ import (
 
 // Server Logic gRPC 服务
 type Server struct {
-	config  *Config
-	grpcSrv *server.GRPCServer
-	naming  naming.Naming
+	config        *Config
+	grpcSrv       *server.GRPCServer
+	naming        naming.Naming
+	traceShutdown func()
 }
 
 // New 创建 Logic 服务实例
@@ -92,6 +94,12 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		logger.LogicLogger.Warnf("init sentinel (resilience disabled): %v", err)
 	}
 
+	// 初始化链路追踪
+	traceShutdown, err := trace.InitTrace("logic", cfg.Trace)
+	if err != nil {
+		logger.LogicLogger.Warnf("init trace (disabled): %v", err)
+	}
+
 	// 创建 gRPC server（挂载服务端限流）
 	grpcSrv, err := server.NewGRPCServer(cfg.Listen,
 		server.WithServiceName("logic"),
@@ -120,9 +128,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	})
 
 	s := &Server{
-		config:  cfg,
-		grpcSrv: grpcSrv,
-		naming:  ns,
+		config:        cfg,
+		grpcSrv:       grpcSrv,
+		naming:        ns,
+		traceShutdown: traceShutdown,
 	}
 
 	return s, nil
@@ -140,6 +149,9 @@ func (s *Server) Stop(ctx context.Context) error {
 		_ = s.naming.Deregister(s.config.ServiceID)
 	}
 	s.grpcSrv.GracefulStop()
+	if s.traceShutdown != nil {
+		s.traceShutdown()
+	}
 	return nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/klintcheng/kim/internal/config"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -45,9 +46,11 @@ func NewGRPCServer(addr string, opts ...Option) (*GRPCServer, error) {
 		opt(o)
 	}
 
-	// 构建拦截器链：recovery → logging → metrics → limiter
+	// 构建拦截器链：recovery → otel(trace) → logging → metrics → limiter
+	// trace 紧跟 Recovery 之后，确保日志/指标阶段已有 span context
 	chain := UnaryChain(
 		RecoveryInterceptor,
+		UnaryInterceptor(otelgrpc.UnaryServerInterceptor()),
 		LoggingInterceptor(o.serviceName),
 		MetricsInterceptor(o.serviceName),
 		LimiterInterceptor(o.serviceName, o.limiter),
@@ -55,6 +58,7 @@ func NewGRPCServer(addr string, opts ...Option) (*GRPCServer, error) {
 
 	s := grpc.NewServer(
 		grpc.UnaryInterceptor(grpc.UnaryServerInterceptor(chain)),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			Time:    30 * time.Second,
 			Timeout: 10 * time.Second,

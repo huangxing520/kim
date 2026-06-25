@@ -72,6 +72,6 @@ func ReadRoute(path string) (*Route, error) {
 	for _, wl := range conf.Whitelist {
 		rt.Whitelist[wl.Key] = wl.Value
 	}
-	logger.GatewayLogger.Infof("route: %+v", rt)
+	logger.CommonLogger.Infof("route: %+v", rt)
 	return &rt, nil
 }

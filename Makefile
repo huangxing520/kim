@@ -30,7 +30,7 @@ PID_DIR         := .pid
 
 .PHONY: all build run-gateway run-comet run-logic run-router \
         stop-gateway stop-comet stop-logic stop-router stop-all \
-        run-all build-all clean deps fmt vet test \
+        run-all build-all clean deps fmt vet lint test \
         docker-up docker-down help
 
 # ==================== 默认目标 ====================
@@ -259,6 +259,11 @@ fmt:
 vet:
 	@echo "==> 静态检查..."
 	$(GO) vet ./...
+
+## lint: golangci-lint 检查
+lint:
+	@echo "==> golangci-lint 检查..."
+	golangci-lint run ./...
 
 ## test: 运行测试
 test:

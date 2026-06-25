@@ -7,6 +7,7 @@ import (
 	"github.com/klintcheng/kim"
 	"github.com/klintcheng/kim/internal/config"
 	"github.com/klintcheng/kim/internal/naming"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -126,12 +127,13 @@ func (p *Pool) refresh() {
 		currentIDs[id] = true
 		if _, exists := p.conns[id]; !exists {
 			addr := fmt.Sprintf("%s:%d", svc.PublicAddress(), svc.PublicPort())
-			// 为每个连接挂载实例级拦截器链
+			// 为每个连接挂载实例级拦截器链 + trace StatsHandler
 			interceptors := InterceptorChain(p.serviceName, id, p.cfg)
 			conn, err := grpc.Dial(addr,
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
 				grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(10*1024*1024)),
 				grpc.WithChainUnaryInterceptor(interceptors...),
+				grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 			)
 			if err != nil {
 				continue

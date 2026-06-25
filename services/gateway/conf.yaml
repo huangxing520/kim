@@ -44,3 +44,10 @@ resilience:
     enable: true
     client_qps: 100           # 客户端（出向）限流
     server_qps: 200           # 服务端（入向）限流
+# 链路追踪配置（默认关闭，配置 enable: true 启用）
+trace:
+  enable: false
+  exporter: "otlp"            # otlp | stdout | noop
+  endpoint: "127.0.0.1:4317"  # OTLP gRPC collector 地址
+  sampling_ratio: 0.1         # 采样率 0.0~1.0
+  insecure: true              # 是否用 plaintext（无 TLS）
