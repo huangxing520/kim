@@ -19,12 +19,14 @@ package serv
 
 import (
 	"bytes"
+	"context"
 	"fmt"
-	"strings" // 【修复#3】新加的：用 strings.LastIndex 替代正则表达式
+	"strings"
 	"time"
 
 	"github.com/klintcheng/kim"
 	"github.com/klintcheng/kim/internal/logger"
+	"github.com/klintcheng/kim/internal/util"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/pkt"
 	"github.com/klintcheng/kim/wire/token"
@@ -36,9 +38,8 @@ const (
 	MetaKeyAccount = "account"
 )
 
-// Forwarder 消息转发器接口（由 gateway.CometForwarder 实现，避免循环引用）
 type Forwarder interface {
-	Forward(p *pkt.LogicPkt) error
+	Forward(ctx context.Context, p *pkt.LogicPkt) error
 }
 
 // Handler Gateway 业务处理器
@@ -50,8 +51,11 @@ type Handler struct {
 
 // Accept this connection
 func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta, error) {
+	defer util.Recover("gateway.Accept")
 	// 1. 读取登录包
-	_ = conn.SetReadDeadline(time.Now().Add(timeout))
+	if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+		logger.GatewayLogger.Warnf("set read deadline in Accept: %v", err)
+	}
 	frame, err := conn.ReadFrame()
 	if err != nil {
 		return "", nil, err
@@ -70,7 +74,9 @@ func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta
 	if req.Command != wire.CommandLoginSignIn {
 		resp := pkt.NewFrom(&req.Header)
 		resp.Status = pkt.Status_InvalidCommand
-		_ = conn.WriteFrame(kim.OpBinary, pkt.Marshal(resp))
+		if err := conn.WriteFrame(kim.OpBinary, pkt.Marshal(resp)); err != nil {
+			logger.GatewayLogger.Warnf("write error response in Accept: %v", err)
+		}
 		return "", nil, fmt.Errorf("must be a SignIn command")
 	}
 
@@ -106,8 +112,7 @@ func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta
 	req.AddStringMeta(MetaKeyApp, tk.App)
 	req.AddStringMeta(MetaKeyAccount, tk.Account)
 
-	// 7. 把login.转发给Login服务
-	err = h.Forwarder.Forward(req)
+	err = h.Forwarder.Forward(context.Background(), req)
 	if err != nil {
 		logger.GatewayLogger.WithFields(logger.Fields{
 			"service": "gateway",
@@ -123,6 +128,7 @@ func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta
 
 // Receive default listener
 func (h *Handler) Receive(ag kim.Agent, payload []byte) {
+	defer util.Recover(fmt.Sprintf("gateway.Receive channel=%s", ag.ID()))
 	buf := bytes.NewBuffer(payload)
 	packet, err := pkt.Read(buf)
 	if err != nil {
@@ -145,7 +151,7 @@ func (h *Handler) Receive(ag kim.Agent, payload []byte) {
 			logicPkt.AddStringMeta(MetaKeyAccount, ag.GetMeta()[MetaKeyAccount])
 		}
 
-		err = h.Forwarder.Forward(logicPkt)
+		err = h.Forwarder.Forward(context.Background(), logicPkt)
 		if err != nil {
 			logger.GatewayLogger.WithFields(logger.Fields{
 				"module": "handler",
@@ -160,13 +166,14 @@ func (h *Handler) Receive(ag kim.Agent, payload []byte) {
 
 // Disconnect default listener
 func (h *Handler) Disconnect(id string) error {
+	defer util.Recover(fmt.Sprintf("gateway.Disconnect id=%s", id))
 	logger.GatewayLogger.WithFields(logger.Fields{
 		"service": "gateway",
 		"pkg":     "serv",
 	}).Infof("disconnect %s", id)
 
 	logout := pkt.New(wire.CommandLoginSignOut, pkt.WithChannel(id))
-	err := h.Forwarder.Forward(logout)
+	err := h.Forwarder.Forward(context.Background(), logout)
 	if err != nil {
 		logger.GatewayLogger.WithFields(logger.Fields{
 			"module": "handler",

@@ -73,8 +73,12 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, err
 	}
 
-	_ = baseDb.AutoMigrate(&database.Group{}, &database.GroupMember{}, &database.User{})
-	_ = messageDb.AutoMigrate(&database.MessageIndex{}, &database.MessageContent{})
+	if err := baseDb.AutoMigrate(&database.Group{}, &database.GroupMember{}, &database.User{}); err != nil {
+		return nil, fmt.Errorf("auto migrate base db: %w", err)
+	}
+	if err := messageDb.AutoMigrate(&database.MessageIndex{}, &database.MessageContent{}); err != nil {
+		return nil, fmt.Errorf("auto migrate message db: %w", err)
+	}
 
 	if cfg.NodeID == 0 {
 		cfg.NodeID = int64(HashCode(cfg.ServiceID))
@@ -127,7 +131,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	_ = ns.Register(&naming.DefaultService{
+	if err := ns.Register(&naming.DefaultService{
 		Id:       cfg.ServiceID,
 		Name:     wire.SNService,
 		Address:  cfg.PublicAddress,
@@ -137,7 +141,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		Meta: map[string]string{
 			naming.KeyHealthURL: fmt.Sprintf("http://%s:%d/health", cfg.PublicAddress, cfg.MonitorPort),
 		},
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("register logic service: %w", err)
+	}
+	grpcSrv.SetReady()
 
 	s := &Server{
 		config:        cfg,
@@ -157,7 +164,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 func (s *Server) Start(ctx context.Context) error {
 	monitorAddr := fmt.Sprintf(":%d", s.config.MonitorPort)
 	go func() {
-		if err := server.StartMonitorHTTP(monitorAddr); err != nil {
+		if err := server.StartMonitorHTTPWithReady(monitorAddr, s.grpcSrv); err != nil {
 			logger.LogicLogger.Errorf("monitor http error: %v", err)
 		}
 	}()
@@ -169,7 +176,9 @@ func (s *Server) Start(ctx context.Context) error {
 // Stop 反注册 Consul 并优雅关闭 gRPC 服务
 func (s *Server) Stop(ctx context.Context) error {
 	if s.naming != nil {
-		_ = s.naming.Deregister(s.config.ServiceID)
+		if err := s.naming.Deregister(s.config.ServiceID); err != nil {
+			logger.LogicLogger.Warnf("deregister logic: %v", err)
+		}
 	}
 	s.grpcSrv.GracefulStop()
 	if s.baseDb != nil {

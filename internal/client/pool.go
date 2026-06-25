@@ -105,17 +105,22 @@ func (p *Pool) Interceptors(instanceID string) []grpc.UnaryClientInterceptor {
 func (p *Pool) watch() {
 	p.refresh()
 
-	_ = p.naming.Subscribe(p.serviceName, func(services []kim.ServiceRegistration) {
+	if err := p.naming.Subscribe(p.serviceName, func(services []kim.ServiceRegistration) {
 		p.refresh()
-	})
+	}); err != nil {
+		logger.CommonLogger.Errorf("pool: subscribe to %s failed: %v", p.serviceName, err)
+	}
 
 	<-p.done
-	_ = p.naming.Unsubscribe(p.serviceName)
+	if err := p.naming.Unsubscribe(p.serviceName); err != nil {
+		logger.CommonLogger.Warnf("pool: unsubscribe from %s: %v", p.serviceName, err)
+	}
 }
 
 func (p *Pool) refresh() {
 	services, err := p.naming.Find(p.serviceName)
 	if err != nil {
+		logger.CommonLogger.Warnf("pool: find %s failed: %v", p.serviceName, err)
 		return
 	}
 
@@ -147,9 +152,9 @@ func (p *Pool) refresh() {
 				dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			}
 
-			conn, err := grpc.Dial(addr, dialOpts...)
+			conn, err := grpc.NewClient(addr, dialOpts...)
 			if err != nil {
-				logger.CommonLogger.Errorf("pool: dial %s/%s at %s: %v", p.serviceName, id, addr, err)
+				logger.CommonLogger.Errorf("pool: new client for %s/%s at %s: %v", p.serviceName, id, addr, err)
 				continue
 			}
 			p.conns[id] = conn
@@ -158,7 +163,9 @@ func (p *Pool) refresh() {
 
 	for id, conn := range p.conns {
 		if !currentIDs[id] {
-			_ = conn.Close()
+			if err := conn.Close(); err != nil {
+				logger.CommonLogger.Warnf("pool: close connection to %s/%s: %v", p.serviceName, id, err)
+			}
 			delete(p.conns, id)
 		}
 	}
@@ -196,8 +203,10 @@ func (p *Pool) Close() {
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	for _, conn := range p.conns {
-		_ = conn.Close()
+	for id, conn := range p.conns {
+		if err := conn.Close(); err != nil {
+			logger.CommonLogger.Warnf("pool: close connection to %s/%s: %v", p.serviceName, id, err)
+		}
 	}
 	p.conns = make(map[string]*grpc.ClientConn)
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/klintcheng/kim/internal/config"
@@ -21,8 +22,9 @@ import (
 
 type GRPCServer struct {
 	*grpc.Server
-	addr string
-	hs   *health.Server
+	addr         string
+	HealthServer *health.Server
+	ready        atomic.Bool
 }
 
 type Option func(*options)
@@ -91,7 +93,7 @@ func NewGRPCServer(addr string, opts ...Option) (*GRPCServer, error) {
 	s := grpc.NewServer(grpcOpts...)
 
 	hs := health.NewServer()
-	hs.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	hs.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
 	healthpb.RegisterHealthServer(s, hs)
 
 	if o.grpcCfg.Reflection {
@@ -99,7 +101,29 @@ func NewGRPCServer(addr string, opts ...Option) (*GRPCServer, error) {
 		logger.CommonLogger.Infof("gRPC reflection enabled for %s", o.serviceName)
 	}
 
-	return &GRPCServer{Server: s, addr: addr, hs: hs}, nil
+	return &GRPCServer{Server: s, addr: addr, HealthServer: hs}, nil
+}
+
+func (s *GRPCServer) SetReady() {
+	s.ready.Store(true)
+	s.HealthServer.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+}
+
+func (s *GRPCServer) SetNotReady() {
+	s.ready.Store(false)
+	s.HealthServer.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
+}
+
+func (s *GRPCServer) IsReady() bool {
+	return s.ready.Load()
+}
+
+func (s *GRPCServer) Start() error {
+	lis, err := net.Listen("tcp", s.addr)
+	if err != nil {
+		return err
+	}
+	return s.Serve(lis)
 }
 
 func loadTLSCredentials(cfg config.GRPCConfig) (credentials.TransportCredentials, error) {
@@ -127,16 +151,4 @@ func loadTLSCredentials(cfg config.GRPCConfig) (credentials.TransportCredentials
 	}
 
 	return credentials.NewTLS(tlsCfg), nil
-}
-
-func (s *GRPCServer) Start() error {
-	lis, err := net.Listen("tcp", s.addr)
-	if err != nil {
-		return err
-	}
-	return s.Serve(lis)
-}
-
-func (s *GRPCServer) HealthServer() *health.Server {
-	return s.hs
 }

@@ -10,6 +10,8 @@ import (
 	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/internal/metrics"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // InvokeFunc 表示一次 RPC 调用，由 ResilientClient 注入 conn（支持重试换实例）
@@ -147,13 +149,25 @@ func (c *ResilientClient) calculateBackoff(attempt int) time.Duration {
 	return backoff
 }
 
-// isNoRetryError 判断是否不可重试的错误
 func isNoRetryError(err error) bool {
 	if err == nil {
 		return false
 	}
 	if err == context.Canceled || err == context.DeadlineExceeded {
 		return true
+	}
+	if st, ok := status.FromError(err); ok {
+		switch st.Code() {
+		case codes.InvalidArgument,
+			codes.PermissionDenied,
+			codes.NotFound,
+			codes.AlreadyExists,
+			codes.FailedPrecondition,
+			codes.OutOfRange,
+			codes.Unimplemented,
+			codes.Unauthenticated:
+			return true
+		}
 	}
 	return false
 }

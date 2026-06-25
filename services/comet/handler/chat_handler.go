@@ -59,7 +59,7 @@ func (h *ChatHandler) DoUserTalk(ctx kim.Context) {
 	}
 	// 3. 保存离线消息
 	sendTime := time.Now().UnixNano()
-	resp, err := h.msgService.InsertUser(ctx.Session().GetApp(), &rpc.InsertMessageReq{
+	resp, err := h.msgService.InsertUser(ctx.StdContext(), ctx.Session().GetApp(), &rpc.InsertMessageReq{
 		Sender:   ctx.Session().GetAccount(),
 		Dest:     receiver,
 		SendTime: sendTime,
@@ -112,7 +112,7 @@ func (h *ChatHandler) DoGroupTalk(ctx kim.Context) {
 	sendTime := time.Now().UnixNano()
 
 	// 2. 保存离线消息
-	resp, err := h.msgService.InsertGroup(ctx.Session().GetApp(), &rpc.InsertMessageReq{
+	resp, err := h.msgService.InsertGroup(ctx.StdContext(), ctx.Session().GetApp(), &rpc.InsertMessageReq{
 		Sender:   ctx.Session().GetAccount(),
 		Dest:     group,
 		SendTime: sendTime,
@@ -127,7 +127,7 @@ func (h *ChatHandler) DoGroupTalk(ctx kim.Context) {
 		return
 	}
 	// 3. 读取群成员列表
-	membersResp, err := h.groupService.Members(ctx.Session().GetApp(), &rpc.GroupMembersReq{
+	membersResp, err := h.groupService.Members(ctx.StdContext(), ctx.Session().GetApp(), &rpc.GroupMembersReq{
 		GroupId: group,
 	})
 	if err != nil {
@@ -172,7 +172,7 @@ func (h *ChatHandler) DoTalkAck(ctx kim.Context) {
 		_ = ctx.RespWithError(pkt.Status_InvalidPacketBody, err)
 		return
 	}
-	err := h.msgService.SetAck(ctx.Session().GetApp(), &rpc.AckMessageReq{
+	err := h.msgService.SetAck(ctx.StdContext(), ctx.Session().GetApp(), &rpc.AckMessageReq{
 		Account:   ctx.Session().GetAccount(),
 		MessageId: req.GetMessageId(),
 	})

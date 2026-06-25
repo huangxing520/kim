@@ -15,9 +15,18 @@ func TestRecover(t *testing.T) {
 
 func TestRecoverNoPanic(t *testing.T) {
 	assert.NotPanics(t, func() {
-		defer Recover("test-location")
+		defer Recover("test-no-panic")
 		_ = 1 + 1
 	})
+}
+
+func TestGoSafe(t *testing.T) {
+	done := make(chan struct{})
+	GoSafe("test-goroutine", func() {
+		defer close(done)
+		panic("test panic in GoSafe")
+	})
+	<-done
 }
 
 func TestSafeRecover(t *testing.T) {
@@ -30,13 +39,4 @@ func TestSafeRecover(t *testing.T) {
 	}()
 	r := <-called
 	assert.Equal(t, "test panic for SafeRecover", r)
-}
-
-func TestGoSafe(t *testing.T) {
-	done := make(chan struct{})
-	GoSafe("test-goroutine", func() {
-		defer close(done)
-		panic("test panic in GoSafe")
-	})
-	<-done
 }

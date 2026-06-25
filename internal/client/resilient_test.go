@@ -8,7 +8,10 @@ import (
 	"time"
 
 	"github.com/klintcheng/kim/internal/config"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // newTestPool 构造测试用 Pool（同包可访问私有字段，conn 填 nil，测试 InvokeFunc 忽略 conn）
@@ -301,4 +304,47 @@ func TestResilientClient_FallbackSwitchesInstance(t *testing.T) {
 	if fi.callCount() != 2 {
 		t.Errorf("expected 2 calls, got %d", fi.callCount())
 	}
+}
+
+func TestIsNoRetryError_ContextCanceled(t *testing.T) {
+	assert.True(t, isNoRetryError(context.Canceled))
+	assert.True(t, isNoRetryError(context.DeadlineExceeded))
+}
+
+func TestIsNoRetryError_GrpcStatusCodes(t *testing.T) {
+	noRetryCodes := []codes.Code{
+		codes.InvalidArgument,
+		codes.PermissionDenied,
+		codes.NotFound,
+		codes.AlreadyExists,
+		codes.FailedPrecondition,
+		codes.OutOfRange,
+		codes.Unimplemented,
+		codes.Unauthenticated,
+	}
+	for _, c := range noRetryCodes {
+		err := status.Error(c, "test error")
+		assert.True(t, isNoRetryError(err), "code %s should not be retried", c)
+	}
+}
+
+func TestIsNoRetryError_RetriableCodes(t *testing.T) {
+	retryCodes := []codes.Code{
+		codes.Unavailable,
+		codes.DeadlineExceeded,
+		codes.ResourceExhausted,
+		codes.Internal,
+	}
+	for _, c := range retryCodes {
+		err := status.Error(c, "test error")
+		assert.False(t, isNoRetryError(err), "code %s should be retried", c)
+	}
+}
+
+func TestIsNoRetryError_NilError(t *testing.T) {
+	assert.False(t, isNoRetryError(nil))
+}
+
+func TestIsNoRetryError_GenericError(t *testing.T) {
+	assert.False(t, isNoRetryError(errors.New("generic error")))
 }

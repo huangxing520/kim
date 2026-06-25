@@ -135,7 +135,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	rpc.RegisterCometServiceServer(grpcSrv, impl)
 
 	// 8. Consul 注册
-	_ = ns.Register(&naming.DefaultService{
+	if err := ns.Register(&naming.DefaultService{
 		Id:       cfg.ServiceID,
 		Name:     wire.SNChat,
 		Address:  cfg.PublicAddress,
@@ -146,7 +146,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 			naming.KeyHealthURL: fmt.Sprintf("http://%s:%d/health", cfg.PublicAddress, cfg.MonitorPort),
 			"zone":              cfg.Zone,
 		},
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("register comet service: %w", err)
+	}
+	grpcSrv.SetReady()
 	logClosed = true
 
 	return &Server{
@@ -164,7 +167,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 func (s *Server) Start(ctx context.Context) error {
 	monitorAddr := fmt.Sprintf(":%d", s.config.MonitorPort)
 	go func() {
-		if err := server.StartMonitorHTTP(monitorAddr); err != nil {
+		if err := server.StartMonitorHTTPWithReady(monitorAddr, s.grpcSrv); err != nil {
 			logger.CometLogger.Errorf("monitor http error: %v", err)
 		}
 	}()
@@ -176,7 +179,9 @@ func (s *Server) Start(ctx context.Context) error {
 // Stop 反注册 Consul 并优雅关闭 gRPC 服务
 func (s *Server) Stop(ctx context.Context) error {
 	if s.naming != nil {
-		_ = s.naming.Deregister(s.config.ServiceID)
+		if err := s.naming.Deregister(s.config.ServiceID); err != nil {
+			logger.CometLogger.Warnf("deregister comet: %v", err)
+		}
 	}
 	s.gwPool.Close()
 	s.logicPool.Close()

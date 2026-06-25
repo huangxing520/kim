@@ -148,7 +148,10 @@ func New(ctx context.Context, cfg *Config, routePath string, protocol string) (*
 			"domain":            cfg.Domain,
 		},
 	}
-	_ = ns.Register(grpcService)
+	if err := ns.Register(grpcService); err != nil {
+		return nil, fmt.Errorf("register gateway grpc service: %w", err)
+	}
+	grpcSrv.SetReady()
 	logClosed = true
 
 	return &Server{
@@ -174,7 +177,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}()
 	monitorAddr := fmt.Sprintf(":%d", s.config.MonitorPort)
 	go func() {
-		if err := server.StartMonitorHTTP(monitorAddr); err != nil {
+		if err := server.StartMonitorHTTPWithReady(monitorAddr, s.grpcSrv); err != nil {
 			logger.GatewayLogger.Errorf("monitor http error: %v", err)
 		}
 	}()
@@ -188,7 +191,9 @@ func (s *Server) Start(ctx context.Context) error {
 // Stop 优雅关闭 Gateway 服务
 func (s *Server) Stop(ctx context.Context) error {
 	if s.naming != nil {
-		_ = s.naming.Deregister(s.config.ServiceID)
+		if err := s.naming.Deregister(s.config.ServiceID); err != nil {
+			logger.GatewayLogger.Warnf("deregister gateway: %v", err)
+		}
 	}
 	s.forwarder.Close()
 	s.grpcSrv.GracefulStop()
