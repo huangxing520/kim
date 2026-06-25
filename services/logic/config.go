@@ -1,6 +1,8 @@
 package logic
 
 import (
+	"fmt"
+
 	"github.com/klintcheng/kim/internal/config"
 	"github.com/klintcheng/kim/model"
 )
@@ -19,6 +21,7 @@ type Config struct {
 	BaseDb        string                  `mapstructure:"base_db"`
 	MessageDb     string                  `mapstructure:"message_db"`
 	LogLevel      string                  `mapstructure:"log_level"`
+	AppSecret     string                  `mapstructure:"app_secret"`
 	Kafka         model.KafkaSettings     `mapstructure:"kafka"`
 	Resilience    config.ResilienceConfig `mapstructure:"resilience"`
 	Trace         config.TraceConfig      `mapstructure:"trace"`
@@ -56,6 +59,9 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if cfg.Trace.SamplingRatio == 0 {
 		cfg.Trace.SamplingRatio = traceDefaults.SamplingRatio
+	}
+	if cfg.AppSecret == "" {
+		return nil, fmt.Errorf("app_secret is required in config")
 	}
 	return &cfg, nil
 }

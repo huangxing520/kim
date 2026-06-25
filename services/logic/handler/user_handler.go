@@ -1,33 +1,49 @@
-// 文件：user_handler.go
-// 职责：用户 gRPC 处理器——处理用户登录（验证密码 + 签发 JWT AccessToken）。
-//
-// 方法（均为 ServiceHandler 的方法）：
-//   - Login(ctx, req) → 用户登录：查询用户 → 验证密码 → 生成 JWT → 缓存 AccessToken → 返回
-
 package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/klintcheng/kim/gen/rpc"
 	"github.com/klintcheng/kim/services/logic/database"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/token"
+	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
+var AppSecret string
+
 func (h *ServiceHandler) Login(ctx context.Context, req *rpc.LoginReq) (*rpc.LoginResp, error) {
-	var contents *database.User
-	err := h.BaseDb.Model(&database.User{}).Where("account = ?", req.Account).First(&contents).Error
+	var user database.User
+	err := h.BaseDb.Model(&database.User{}).Where("account = ?", req.Account).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("account not found")
+		}
+		return nil, err
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		return nil, fmt.Errorf("invalid password")
+	}
+
+	if AppSecret == "" {
+		return nil, fmt.Errorf("app_secret not configured")
+	}
+
+	value, err := token.Generate(AppSecret, &token.Token{
+		Account: req.Account,
+		App:     user.App,
+		Exp:     time.Now().Add(wire.AccessTokenExpiresIn).Unix(),
+	})
 	if err != nil {
 		return nil, err
 	}
-	if contents != nil && contents.Password == req.Password {
-		value, _ := token.Generate("secret", &token.Token{
-			Account: req.Account,
-		})
-		h.Cache.Set(req.Account, value, wire.AccessTokenExpiresIn)
-		return &rpc.LoginResp{AccessToken: value}, nil
+	if err := h.Cache.Set(req.Account, value, wire.AccessTokenExpiresIn).Err(); err != nil {
+		return nil, fmt.Errorf("cache set failed: %w", err)
 	}
-	return nil, fmt.Errorf("login failed")
+	return &rpc.LoginResp{AccessToken: value}, nil
 }

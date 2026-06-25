@@ -11,6 +11,7 @@ driver: "mysql"
 base_db: "root:root@tcp(127.0.0.1:3306)/kim?parseTime=true"
 message_db: "root:root@tcp(127.0.0.1:3306)/kim_message?parseTime=true"
 log_level: "info"
+app_secret: "kim-dev-secret-change-in-production-32b"
 # 弹性套件配置（不配置则使用代码默认值）
 resilience:
   breaker:

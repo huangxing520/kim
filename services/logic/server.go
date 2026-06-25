@@ -91,6 +91,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 
 	// 创建 handler
+	handler.AppSecret = cfg.AppSecret
 	h := &handler.ServiceHandler{
 		BaseDb:    baseDb,
 		MessageDb: messageDb,

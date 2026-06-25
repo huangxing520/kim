@@ -48,7 +48,7 @@ type User struct {
 	Model
 	App      string `gorm:"size:30"`
 	Account  string `gorm:"uniqueIndex;size:60"`
-	Password string `gorm:"size:30"`
+	Password string `gorm:"size:60"`
 	Avatar   string `gorm:"size:200"`
 	Nickname string `gorm:"size:20"`
 }
