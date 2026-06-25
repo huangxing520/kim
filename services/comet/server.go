@@ -1,160 +1,166 @@
 // 文件：server.go
-// 职责：Comet 服务入口——Cobra 命令行启动 Chat/Login 服务，组装 Router、Handler、Redis 缓存、服务发现等组件。
+// 职责：Comet 服务入口——gRPC 服务器，组装 Router、Handler、Redis 缓存、gRPC 客户端池、Consul 服务注册。
 //
 // 定义的类型：
-//   - ServerStartOptions 结构体：命令行启动参数（config / serviceName）
+//   - Server 结构体：gRPC 服务实例（持有 config / grpcSrv / naming / logicPool / gwPool）
 //
 // 方法：
-//   - NewServerStartCmd(ctx, version)   → 创建 comet 子命令（Cobra）
-//   - RunServerStart(ctx, opts, version) → 启动 Comet：加载配置 → 初始化 logger → 创建 Router 并注册 Handler →
-//                                          初始化 Redis 缓存 → 创建 Server → Init container →
-//                                          注册 Consul Naming → Start
+//   - New(ctx, cfg)       → 创建 Comet 服务：初始化 logger/Redis/Naming/ClientPool → 注册 Handler → 创建 gRPC Server → 注册 Consul
+//   - (Server).Start(ctx) → 启动 gRPC 服务（阻塞）
+//   - (Server).Stop(ctx)  → 反注册 Consul + 关闭连接池 + GracefulStop
+//   - initRedis(addr)     → 初始化单机 Redis 客户端
 
 package comet
 
 import (
 	"context"
 	"fmt"
-	"strings"
 
-	"github.com/go-resty/resty/v2"
+	"github.com/go-redis/redis/v7"
 	"github.com/klintcheng/kim"
-	"github.com/klintcheng/kim/container"
+	"github.com/klintcheng/kim/gen/rpc"
+	"github.com/klintcheng/kim/internal/client"
+	"github.com/klintcheng/kim/internal/naming"
+	"github.com/klintcheng/kim/internal/server"
 	"github.com/klintcheng/kim/logger"
 	"github.com/klintcheng/kim/middleware"
-	"github.com/klintcheng/kim/naming"
-	"github.com/klintcheng/kim/naming/consul"
-	"github.com/klintcheng/kim/services/comet/conf"
 	"github.com/klintcheng/kim/services/comet/handler"
-	"github.com/klintcheng/kim/services/comet/serv"
 	"github.com/klintcheng/kim/services/comet/service"
 	"github.com/klintcheng/kim/storage"
-	"github.com/klintcheng/kim/tcp"
 	"github.com/klintcheng/kim/wire"
-	"github.com/spf13/cobra"
 )
 
-// ServerStartOptions ServerStartOptions
-type ServerStartOptions struct {
-	config      string
-	serviceName string
+// Server Comet gRPC 服务
+type Server struct {
+	config    *Config
+	grpcSrv   *server.GRPCServer
+	naming    naming.Naming
+	logicPool *client.Pool
+	gwPool    *client.Pool
 }
 
-// NewServerStartCmd creates a new http server command
-func NewServerStartCmd(ctx context.Context, version string) *cobra.Command {
-	opts := &ServerStartOptions{}
-
-	cmd := &cobra.Command{
-		Use:   "comet",
-		Short: "Start a server",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return RunServerStart(ctx, opts, version)
-		},
-	}
-	cmd.PersistentFlags().StringVarP(&opts.config, "config", "c", "services/comet/conf.yaml", "Config file")
-	cmd.PersistentFlags().StringVarP(&opts.serviceName, "serviceName", "s", "chat", "defined a service name,option is login or chat")
-	return cmd
-}
-
-// RunServerStart run http server
-func RunServerStart(ctx context.Context, opts *ServerStartOptions, version string) error {
-	config, err := conf.Init(opts.config)
-	if err != nil {
-		return err
-	}
+// New 创建 Comet 服务实例
+func New(ctx context.Context, cfg *Config) (*Server, error) {
+	// 1. 初始化 logger
 	log, err := logger.Init(logger.Settings{
-		Level:       config.LogLevel,
+		Level:       cfg.LogLevel,
 		Filename:    "./data/comet.log",
-		ServiceName: opts.serviceName,
-		Kafka:       config.Kafka,
+		ServiceName: "comet",
+		Kafka:       cfg.Kafka,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	logger.CometLogger = log.Sugar()
 	defer log.Close()
 
-	var groupService service.Group
-	var messageService service.Message
-	var userMessage service.User
-	if strings.TrimSpace(config.RoyalURL) != "" {
-		groupService = service.NewGroupService(config.RoyalURL)
-		messageService = service.NewMessageService(config.RoyalURL)
-		userMessage = service.NewUserService(config.RoyalURL)
-	} else {
-		srvRecord := &resty.SRVRecord{
-			Domain:  "consul",
-			Service: wire.SNService,
-		}
-		groupService = service.NewGroupServiceWithSRV("http", srvRecord)
-		messageService = service.NewMessageServiceWithSRV("http", srvRecord)
-		userMessage = service.NewUserServiceWithSRV("http", srvRecord)
+	// 2. 初始化 Redis
+	rdb, err := initRedis(cfg.RedisAddrs)
+	if err != nil {
+		return nil, err
+	}
+	cache := storage.NewRedisStorage(rdb)
+
+	// 3. Consul naming
+	ns, err := naming.NewNaming(cfg.ConsulURL)
+	if err != nil {
+		return nil, err
 	}
 
+	// 4. gRPC client pool
+	logicPool := client.NewPool(ns, wire.SNService) // "royal"
+	gwPool := client.NewPool(ns, wire.SNWGateway)   // "wgateway"
+
+	// 5. service clients
+	logicCli := service.NewLogicClient(logicPool)
+	pusher := service.NewGatewayPusher(gwPool)
+
+	// 6. Router + handlers
 	r := kim.NewRouter()
 	r.Use(middleware.Recover())
-	r.Use(middleware.Recover())
 	// login
-	loginHandler := handler.NewLoginHandler(userMessage)
+	loginHandler := handler.NewLoginHandler(logicCli)
 	r.Handle(wire.CommandLoginSignIn, loginHandler.DoSysLogin)
 	r.Handle(wire.CommandLoginSignOut, loginHandler.DoSysLogout)
 	// talk
-	chatHandler := handler.NewChatHandler(messageService, groupService)
+	chatHandler := handler.NewChatHandler(logicCli, logicCli)
 	r.Handle(wire.CommandChatUserTalk, chatHandler.DoUserTalk)
 	r.Handle(wire.CommandChatGroupTalk, chatHandler.DoGroupTalk)
 	r.Handle(wire.CommandChatTalkAck, chatHandler.DoTalkAck)
 	// group
-	groupHandler := handler.NewGroupHandler(groupService)
+	groupHandler := handler.NewGroupHandler(logicCli)
 	r.Handle(wire.CommandGroupCreate, groupHandler.DoCreate)
 	r.Handle(wire.CommandGroupJoin, groupHandler.DoJoin)
 	r.Handle(wire.CommandGroupQuit, groupHandler.DoQuit)
 	r.Handle(wire.CommandGroupDetail, groupHandler.DoDetail)
-
 	// offline
-	offlineHandler := handler.NewOfflineHandler(messageService)
+	offlineHandler := handler.NewOfflineHandler(logicCli)
 	r.Handle(wire.CommandOfflineIndex, offlineHandler.DoSyncIndex)
 	r.Handle(wire.CommandOfflineContent, offlineHandler.DoSyncContent)
 
-	rdb, err := conf.InitRedis(config.RedisAddrs, "")
+	// 7. gRPC server
+	grpcSrv, err := server.NewGRPCServer(cfg.Listen, server.WithServiceName("comet"))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	cache := storage.NewRedisStorage(rdb)
-	servhandler := serv.NewServHandler(r, cache)
-
-	meta := make(map[string]string)
-	meta[consul.KeyHealthURL] = fmt.Sprintf("http://%s:%d/health", config.PublicAddress, config.MonitorPort)
-	meta["zone"] = config.Zone
-
-	service := &naming.DefaultService{
-		Id:       config.ServiceID,
-		Name:     opts.serviceName,
-		Address:  config.PublicAddress,
-		Port:     config.PublicPort,
-		Protocol: string(wire.ProtocolTCP),
-		Tags:     config.Tags,
-		Meta:     meta,
+	impl := &CometServiceImpl{
+		router: r,
+		pusher: pusher,
+		cache:  cache,
 	}
-	srvOpts := []kim.ServerOption{
-		kim.WithConnectionGPool(config.ConnectionGPool), kim.WithMessageGPool(config.MessageGPool),
+	rpc.RegisterCometServiceServer(grpcSrv, impl)
+
+	// 8. Consul 注册
+	_ = ns.Register(&naming.DefaultService{
+		Id:       cfg.ServiceID,
+		Name:     wire.SNChat,
+		Address:  cfg.PublicAddress,
+		Port:     cfg.PublicPort,
+		Protocol: "grpc",
+		Tags:     cfg.Tags,
+		Meta: map[string]string{
+			naming.KeyHealthURL: fmt.Sprintf("http://%s:%d/health", cfg.PublicAddress, cfg.PublicPort),
+			"zone":              cfg.Zone,
+		},
+	})
+
+	return &Server{
+		config:    cfg,
+		grpcSrv:   grpcSrv,
+		naming:    ns,
+		logicPool: logicPool,
+		gwPool:    gwPool,
+	}, nil
+}
+
+// Start 启动 gRPC 服务（阻塞）
+func (s *Server) Start(ctx context.Context) error {
+	logger.CometLogger.Infof("comet service starting on %s", s.config.Listen)
+	return s.grpcSrv.Start()
+}
+
+// Stop 反注册 Consul 并优雅关闭 gRPC 服务
+func (s *Server) Stop(ctx context.Context) error {
+	if s.naming != nil {
+		_ = s.naming.Deregister(s.config.ServiceID)
 	}
-	srv := tcp.NewServer(config.Listen, service, srvOpts...)
+	s.gwPool.Close()
+	s.logicPool.Close()
+	s.grpcSrv.GracefulStop()
+	return nil
+}
 
-	srv.SetReadWait(kim.DefaultReadWait)
-	srv.SetAcceptor(servhandler)
-	srv.SetMessageListener(servhandler)
-	srv.SetStateListener(servhandler)
-
-	if err := container.Init(srv); err != nil {
-		return err
+// initRedis 初始化单机 Redis 客户端
+func initRedis(addr string) (*redis.Client, error) {
+	if addr == "" {
+		return nil, nil
 	}
-	container.EnableMonitor(fmt.Sprintf(":%d", config.MonitorPort))
-
-	ns, err := consul.NewNaming(config.ConsulURL)
+	redisdb := redis.NewClient(&redis.Options{
+		Addr: addr,
+	})
+	_, err := redisdb.Ping().Result()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	container.SetServiceNaming(ns)
-
-	return container.Start()
+	return redisdb, nil
 }

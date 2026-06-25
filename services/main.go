@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/klintcheng/kim/services/comet"
+	cometcmd "github.com/klintcheng/kim/services/comet/cmd"
 	"github.com/klintcheng/kim/services/gateway"
 	logiccmd "github.com/klintcheng/kim/services/logic/cmd"
 	"github.com/klintcheng/kim/services/router"
@@ -32,7 +32,7 @@ func main() {
 	ctx := context.Background()
 
 	root.AddCommand(gateway.NewServerStartCmd(ctx, version))
-	root.AddCommand(comet.NewServerStartCmd(ctx, version))
+	root.AddCommand(cometcmd.NewStartCmd(ctx, version))
 	root.AddCommand(logiccmd.NewStartCmd(ctx, version))
 	root.AddCommand(router.NewServerStartCmd(ctx, version))
 
