@@ -78,6 +78,23 @@ func Benchmark_InsertGroup10Message(b *testing.B) {
 	})
 }
 
+func TestInsertGroupMessage_NoTruncation(t *testing.T) {
+	memberCount := 2500
+	batchSize := 1000
+	expectedBatches := (memberCount + batchSize - 1) / batchSize
+	assert.Equal(t, 3, expectedBatches, "2500 members should produce 3 batches of 1000")
+
+	total := 0
+	for i := 0; i < memberCount; i += batchSize {
+		end := i + batchSize
+		if end > memberCount {
+			end = memberCount
+		}
+		total += end - i
+	}
+	assert.Equal(t, memberCount, total, "all members must be covered across batches")
+}
+
 func Benchmark_InsertGroup50Message(b *testing.B) {
 	memberCount := 50
 

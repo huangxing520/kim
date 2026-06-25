@@ -101,29 +101,8 @@ func (h *ServiceHandler) insertGroupMessage(req *rpc.InsertMessageReq) (int64, e
 	if err != nil {
 		return 0, err
 	}
-	// 【修复#10】原代码没有对群成员数量做上限校验
-	// 超大群（如万人群）会导致插入数万行索引，事务超时并长时间占用数据库连接
-	// 新加的：限制单次写入的群成员数量，超过上限则分批处理
-	maxBatchSize := 1000 // 新加的：单次事务最大写入行数
-	if len(members) > maxBatchSize {
-		members = members[:maxBatchSize] // 新加的：截断到上限，避免超大群导致事务超时
-	}
-	// 扩散写
-	var idxs = make([]database.MessageIndex, len(members))
-	for i, m := range members {
-		idxs[i] = database.MessageIndex{
-			ID:        h.Idgen.Next().Int64(),
-			MessageID: messageId,
-			AccountA:  m.Account,
-			AccountB:  req.Sender,
-			Direction: 0,
-			Group:     m.Group,
-			SendTime:  req.SendTime,
-		}
-		if m.Account == req.Sender {
-			idxs[i].Direction = 1
-		}
-	}
+
+	const maxBatchSize = 1000
 
 	messageContent := database.MessageContent{
 		ID:       messageId,
@@ -133,29 +112,41 @@ func (h *ServiceHandler) insertGroupMessage(req *rpc.InsertMessageReq) (int64, e
 		SendTime: req.SendTime,
 	}
 
-	// 【修复#10】原代码使用 h.MessageDb.Transaction 包裹 messageContent 和 idxs 的写入
-	// 但 members 是从 h.BaseDb 查询的，跨库事务无法保证一致性
-	// 新加的：将 messageContent 和 idxs 都在同一个 MessageDb 事务中写入，保证同库事务一致性
-	err = h.MessageDb.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&messageContent).Error; err != nil {
-			return err
-		}
-		// 【修复#10】新加的：分批插入索引，避免单次 INSERT 过大导致锁表或超时
-		batchSize := 500 // 新加的：每批插入500行
-		for i := 0; i < len(idxs); i += batchSize {
-			end := i + batchSize
-			if end > len(idxs) {
-				end = len(idxs)
-			}
-			if err := tx.CreateInBatches(idxs[i:end], batchSize).Error; err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
+	if err := h.MessageDb.Create(&messageContent).Error; err != nil {
 		return 0, err
 	}
+
+	for i := 0; i < len(members); i += maxBatchSize {
+		end := i + maxBatchSize
+		if end > len(members) {
+			end = len(members)
+		}
+		batch := members[i:end]
+
+		idxs := make([]database.MessageIndex, len(batch))
+		for j, m := range batch {
+			idxs[j] = database.MessageIndex{
+				ID:        h.Idgen.Next().Int64(),
+				MessageID: messageId,
+				AccountA:  m.Account,
+				AccountB:  req.Sender,
+				Direction: 0,
+				Group:     m.Group,
+				SendTime:  req.SendTime,
+			}
+			if m.Account == req.Sender {
+				idxs[j].Direction = 1
+			}
+		}
+
+		err = h.MessageDb.Transaction(func(tx *gorm.DB) error {
+			return tx.CreateInBatches(idxs, 500).Error
+		})
+		if err != nil {
+			return 0, err
+		}
+	}
+
 	return messageId, nil
 }
 
