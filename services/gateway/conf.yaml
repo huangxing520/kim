@@ -19,3 +19,28 @@ kafka:
   enable: false
   brokers: []
   topic: "kim_logs"
+# 弹性套件配置（不配置则使用代码默认值）
+resilience:
+  breaker:
+    enable: true
+    strategy: "both"          # error_rate | slow_call | both
+    threshold: 0.5            # 错误率阈值
+    slow_call_rtt: "500ms"    # 慢调用阈值
+    slow_call_ratio: 0.5      # 慢调用比例阈值
+    retry_timeout_ms: 5000    # 熔断打开后多久尝试半开
+    min_request_amount: 10    # 触发熔断的最小请求数
+    stat_interval_ms: 1000    # 统计窗口
+  retry:
+    enable: true
+    max_attempts: 3
+    initial_backoff: "50ms"
+    max_backoff: "500ms"
+    multiplier: 2.0
+    jitter: 0.1
+  timeout:
+    enable: true
+    default: "3s"
+  limiter:
+    enable: true
+    client_qps: 100           # 客户端（出向）限流
+    server_qps: 200           # 服务端（入向）限流
