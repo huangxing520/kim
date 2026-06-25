@@ -20,6 +20,8 @@ type Pool struct {
 	conns       map[string]*grpc.ClientConn
 	rr          *roundRobin
 	cfg         config.ResilienceConfig
+	done        chan struct{}
+	closeOnce   sync.Once
 }
 
 // NewPool 创建连接池，监听指定服务的变更
@@ -35,6 +37,7 @@ func NewPoolWithConfig(ns naming.Naming, serviceName string, cfg config.Resilien
 		conns:       make(map[string]*grpc.ClientConn),
 		rr:          newRoundRobin(),
 		cfg:         cfg,
+		done:        make(chan struct{}),
 	}
 	if ns != nil {
 		go p.watch()
@@ -109,6 +112,9 @@ func (p *Pool) watch() {
 	_ = p.naming.Subscribe(p.serviceName, func(services []kim.ServiceRegistration) {
 		p.refresh()
 	})
+
+	<-p.done
+	_ = p.naming.Unsubscribe(p.serviceName)
 }
 
 func (p *Pool) refresh() {
@@ -153,6 +159,10 @@ func (p *Pool) refresh() {
 
 // Close 关闭所有连接
 func (p *Pool) Close() {
+	p.closeOnce.Do(func() {
+		close(p.done)
+	})
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	for _, conn := range p.conns {
