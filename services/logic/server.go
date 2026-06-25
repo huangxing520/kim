@@ -56,6 +56,12 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, err
 	}
 	logger.LogicLogger = log.Sugar()
+	logClosed := false
+	defer func() {
+		if !logClosed {
+			_ = log.Close()
+		}
+	}()
 
 	// 初始化 DB
 	baseDb, err := database.InitDb(cfg.Driver, cfg.BaseDb)
@@ -139,6 +145,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		log:           log,
 		traceShutdown: traceShutdown,
 	}
+	logClosed = true
 
 	return s, nil
 }

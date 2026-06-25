@@ -55,6 +55,12 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, err
 	}
 	logger.CometLogger = log.Sugar()
+	logClosed := false
+	defer func() {
+		if !logClosed {
+			_ = log.Close()
+		}
+	}()
 
 	// 2. 初始化 Redis
 	rdb, err := initRedis(cfg.RedisAddrs)
@@ -139,6 +145,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 			"zone":              cfg.Zone,
 		},
 	})
+	logClosed = true
 
 	return &Server{
 		config:        cfg,

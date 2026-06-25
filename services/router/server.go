@@ -45,6 +45,12 @@ func New(ctx context.Context, cfg *Config, dataPath string) (*Server, error) {
 		return nil, err
 	}
 	logger.RouterLogger = log.Sugar()
+	logClosed := false
+	defer func() {
+		if !logClosed {
+			_ = log.Close()
+		}
+	}()
 
 	// 2. 加载路由配置
 	mappings, err := conf.LoadMapping(path.Join(dataPath, "mapping.json"))
@@ -89,6 +95,7 @@ func New(ctx context.Context, cfg *Config, dataPath string) (*Server, error) {
 	{
 		routerAPIGroup.Get("/:token", routerAPI.Lookup)
 	}
+	logClosed = true
 
 	return &Server{
 		config:   cfg,

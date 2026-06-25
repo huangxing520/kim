@@ -56,6 +56,12 @@ func New(ctx context.Context, cfg *Config, routePath string, protocol string) (*
 		return nil, err
 	}
 	logger.GatewayLogger = log.Sugar()
+	logClosed := false
+	defer func() {
+		if !logClosed {
+			_ = log.Close()
+		}
+	}()
 
 	// 2. Consul naming
 	ns, err := naming.NewNaming(cfg.ConsulURL)
@@ -141,6 +147,7 @@ func New(ctx context.Context, cfg *Config, routePath string, protocol string) (*
 		},
 	}
 	_ = ns.Register(grpcService)
+	logClosed = true
 
 	return &Server{
 		config:        cfg,
