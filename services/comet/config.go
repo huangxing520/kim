@@ -16,6 +16,7 @@ type Config struct {
 	Zone            string                  `mapstructure:"zone"`
 	ConsulURL       string                  `mapstructure:"consul_url"`
 	RedisAddrs      string                  `mapstructure:"redis_addrs"`
+	RedisPassword   string                  `mapstructure:"redis_password"`
 	LogLevel        string                  `mapstructure:"log_level"`
 	MessageGPool    int                     `mapstructure:"message_g_pool"`
 	ConnectionGPool int                     `mapstructure:"connection_g_pool"`

@@ -17,6 +17,7 @@ type Config struct {
 	Tags          []string                `mapstructure:"tags"`
 	ConsulURL     string                  `mapstructure:"consul_url"`
 	RedisAddrs    string                  `mapstructure:"redis_addrs"`
+	RedisPassword string                  `mapstructure:"redis_password"`
 	Driver        string                  `mapstructure:"driver"`
 	BaseDb        string                  `mapstructure:"base_db"`
 	MessageDb     string                  `mapstructure:"message_db"`

@@ -63,7 +63,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}()
 
 	// 2. 初始化 Redis
-	rdb, err := initRedis(cfg.RedisAddrs)
+	rdb, err := initRedis(cfg.RedisAddrs, cfg.RedisPassword)
 	if err != nil {
 		return nil, err
 	}
@@ -196,12 +196,13 @@ func (s *Server) Stop(ctx context.Context) error {
 }
 
 // initRedis 初始化单机 Redis 客户端
-func initRedis(addr string) (*redis.Client, error) {
+func initRedis(addr string, password string) (*redis.Client, error) {
 	if addr == "" {
 		return nil, nil
 	}
 	redisdb := redis.NewClient(&redis.Options{
-		Addr: addr,
+		Addr:     addr,
+		Password: password,
 	})
 	_, err := redisdb.Ping().Result()
 	if err != nil {
