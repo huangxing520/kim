@@ -30,7 +30,7 @@ import (
 
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 	"github.com/klintcheng/kim/internal/logger"
 )
 

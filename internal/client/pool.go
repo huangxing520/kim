@@ -7,7 +7,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 	"github.com/klintcheng/kim/internal/config"
 	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/internal/naming"

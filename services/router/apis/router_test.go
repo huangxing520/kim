@@ -3,7 +3,7 @@ package apis
 import (
 	"testing"
 
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/services/router/conf"
 	"github.com/stretchr/testify/assert"

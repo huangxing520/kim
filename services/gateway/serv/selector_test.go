@@ -3,7 +3,7 @@ package serv
 import (
 	"testing"
 
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/wire"

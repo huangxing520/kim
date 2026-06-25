@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 	"github.com/klintcheng/kim/examples/dialer"
 	"github.com/klintcheng/kim/websocket"
 	"github.com/klintcheng/kim/wire"

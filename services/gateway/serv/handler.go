@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/internal/util"
 	"github.com/klintcheng/kim/wire"

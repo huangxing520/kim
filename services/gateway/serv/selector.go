@@ -17,7 +17,7 @@ import (
 	"hash/crc32"
 	"math/rand"
 
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/services/gateway/conf"
 	"github.com/klintcheng/kim/wire/pkt"

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 	"github.com/klintcheng/kim/examples/mock"
 	"github.com/klintcheng/kim/websocket"
 	"github.com/panjf2000/ants/v2"

@@ -28,7 +28,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 )
 
 // ErrNotFound 服务未找到

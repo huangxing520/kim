@@ -16,7 +16,7 @@ import (
 	"net"
 
 	"github.com/gobwas/ws"
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 )
 
 // Upgrader WebSocket 协议升级器

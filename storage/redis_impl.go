@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v7"
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 	"github.com/klintcheng/kim/wire/pkt"
 	"google.golang.org/protobuf/proto"
 )

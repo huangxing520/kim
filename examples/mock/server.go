@@ -7,7 +7,7 @@ import (
 	_ "net/http/pprof"
 	"time"
 
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/tcp"
 	"github.com/klintcheng/kim/websocket"

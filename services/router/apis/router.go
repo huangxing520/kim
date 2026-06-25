@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/kataras/iris/v12"
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/services/router/conf"

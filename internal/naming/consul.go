@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/api"
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 	"github.com/klintcheng/kim/internal/logger"
 )
 

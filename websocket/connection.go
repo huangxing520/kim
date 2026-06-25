@@ -21,7 +21,7 @@ import (
 	"net"
 
 	"github.com/gobwas/ws"
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 )
 
 // Frame WebSocket 帧包装

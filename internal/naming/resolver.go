@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 	"google.golang.org/grpc/resolver"
 )
 

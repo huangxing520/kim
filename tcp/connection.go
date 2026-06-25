@@ -21,7 +21,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 	"github.com/klintcheng/kim/wire/endian"
 )
 

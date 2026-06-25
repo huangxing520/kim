@@ -17,7 +17,7 @@ import (
 	"fmt"
 
 	"github.com/go-redis/redis/v7"
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 	"github.com/klintcheng/kim/gen/rpc"
 	"github.com/klintcheng/kim/internal/client"
 	"github.com/klintcheng/kim/internal/logger"

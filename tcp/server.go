@@ -15,7 +15,7 @@ import (
 	"bufio"
 	"net"
 
-	"github.com/klintcheng/kim"
+	kim "github.com/klintcheng/kim/internal/kim"
 )
 
 // Upgrader TCP 协议升级器（无握手，直接包装）
