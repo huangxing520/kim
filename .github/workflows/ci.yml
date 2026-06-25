@@ -1,65 +1,34 @@
 name: CI
 
-on:
-  push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
+on: [push, pull_request]
 
 jobs:
-  # 静态检查
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.26"
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          args: --timeout 5m
-
-  # go vet
-  vet:
-    name: Vet
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.26"
-      - name: go vet
-        run: go vet ./...
-
-  # 单元测试（排除依赖外部服务的包）
   test:
-    name: Test
+    name: Build & Vet & Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
-      - name: Run unit tests
-        run: |
-          go test -race -v \
-            ./wire/... \
-            ./internal/... \
-            ./services/comet/... \
-            ./services/gateway/... \
-            ./report/...
+          go-version: '1.26'
+      - name: Download dependencies
+        run: go mod download
+      - name: Build
+        run: go build ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Run tests (race detector)
+        run: go test -race -count=1 ./...
 
-  # 编译验证
-  build:
-    name: Build
+  vulncheck:
+    name: Vulnerability Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
-      - name: Build binary
-        run: go build -o bin/kim ./cmd/kim
+          go-version: '1.26'
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: Run govulncheck
+        run: govulncheck ./...

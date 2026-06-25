@@ -12,6 +12,7 @@ linters:
     - unused
     - misspell
     - gosimple
+    - gosec
 
 linters-settings:
   errcheck:
@@ -29,6 +30,23 @@ issues:
     - path: _test\.go
       linters:
         - errcheck
+    # gosec: 开发配置中的硬编码密钥/凭证（仅用于开发模式，生产环境通过配置文件注入）
+    - path: services/.*/config\.go
+      text: "G101:"
+    - path: internal/config/.*\.go
+      text: "G101:"
+    # gosec: 测试代码中的硬编码凭证
+    - path: _test\.go
+      text: "G101:"
+    # gosec: 示例代码中的硬编码配置
+    - path: examples/
+      text: "G101:"
+    # gosec: insecure credentials 用于开发模式（insecure.NewCredentials）
+    - text: "G402:"
+      linters: [gosec]
+    # gosec: TLS 配置中 InsecureSkipVerify 可能在开发环境使用
+    - path: internal/client/pool\.go
+      text: "G402:"
   # 已知问题的临时豁免（login_handler.go 的 protobuf 锁复制）
   exclude-dirs:
     - wire/pkt
