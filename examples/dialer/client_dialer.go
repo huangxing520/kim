@@ -26,15 +26,12 @@ func (d *ClientDialer) DialAndHandshake(ctx kim.DialerContext) (net.Conn, error)
 		return nil, err
 	}
 	if d.AppSecret == "" {
-		d.AppSecret = token.DefaultSecret
+		d.AppSecret = "kim-dev-secret-change-in-production-32b"
 	}
-	// 2. 直接使用封装的JWT包生成一个token
 	tk, err := token.Generate(d.AppSecret, &token.Token{
-		Account:     ctx.Id,
-		App:         "kim",
-		Exp:         time.Now().AddDate(0, 0, 1).Unix(),
-		Password:    "85462316",
-		AccessToken: "",
+		Account: ctx.Id,
+		App:     "kim",
+		Exp:     time.Now().AddDate(0, 0, 1).Unix(),
 	})
 	if err != nil {
 		return nil, err

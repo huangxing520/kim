@@ -10,7 +10,7 @@ tags:
 domain: "ws://kingimcloud.com"
 consul_url: "http://127.0.0.1:8500"
 monitor_port: 8001
-app_secret: ""
+app_secret: "kim-dev-secret-change-in-production-32b"
 log_level: "info"
 message_g_pool: 5000
 connection_g_pool: 15000

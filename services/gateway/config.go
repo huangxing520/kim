@@ -10,6 +10,8 @@
 package gateway
 
 import (
+	"fmt"
+
 	"github.com/klintcheng/kim/internal/config"
 	"github.com/klintcheng/kim/model"
 )
@@ -76,6 +78,9 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if cfg.Trace.SamplingRatio == 0 {
 		cfg.Trace.SamplingRatio = traceDefaults.SamplingRatio
+	}
+	if cfg.AppSecret == "" {
+		return nil, fmt.Errorf("app_secret is required in gateway config")
 	}
 	return &cfg, nil
 }

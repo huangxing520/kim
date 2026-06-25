@@ -5,11 +5,11 @@ go 1.26
 require (
 	github.com/alibaba/sentinel-golang v1.0.4
 	github.com/bwmarrin/snowflake v0.3.0
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/go-redis/redis/v7 v7.4.1
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/gobwas/pool v0.2.1
 	github.com/gobwas/ws v1.4.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang/mock v1.6.0
 	github.com/hashicorp/consul/api v1.34.3
 	github.com/kataras/iris/v12 v12.2.11

@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/klintcheng/kim/wire/token"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +23,7 @@ func NewBenchmarkCmd(ctx context.Context) *cobra.Command {
 	}
 	var opts = &Options{}
 	cmd.PersistentFlags().StringVarP(&opts.Addr, "address", "a", "ws://localhost:8000", "server address")
-	cmd.PersistentFlags().StringVarP(&opts.AppSecret, "appSecret", "s", token.DefaultSecret, "app secret")
+	cmd.PersistentFlags().StringVarP(&opts.AppSecret, "appSecret", "s", "kim-dev-secret-change-in-production-32b", "app secret")
 	cmd.PersistentFlags().IntVarP(&opts.Count, "count", "c", 100, "request count")
 	cmd.PersistentFlags().IntVarP(&opts.Threads, "thread", "t", 10, "thread count")
 

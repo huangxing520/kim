@@ -82,39 +82,26 @@ func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta
 	}
 	secret := h.AppSecret
 	if secret == "" {
-		secret = token.DefaultSecret
+		return "", nil, fmt.Errorf("app_secret not configured")
 	}
 
-	//err = wsutil.WriteServerMessage(conn, ws.OpText, []byte("12345"))
-	//if err != nil {
-	//	log.Println(err)
-	//}
-	// 4. 使用默认的DefaultSecret 解析token
 	tk, err := token.Parse(secret, login.Token)
 	if err != nil {
-		// 5. 如果token无效，就返回SDK一个Unauthorized消息
 		resp := pkt.NewFrom(&req.Header)
 		resp.Status = pkt.Status_Unauthorized
-		err1 := conn.WriteFrame(kim.OpBinary, pkt.Marshal(resp))
-		print(err1)
+		_ = conn.WriteFrame(kim.OpBinary, pkt.Marshal(resp))
 		return "", nil, err
 	}
-	// 6. 生成一个全局唯一的ChannelID
 	id := generateChannelID(h.ServiceID, tk.Account)
-	logger.GatewayLogger.WithFields(logger.Fields{
-		"service": "gateway",
-		"pkg":     "serv",
-	}).Infof("accept %v channel:%s", tk, id)
+	logger.GatewayLogger.Infof("accept %v channel:%s", tk, id)
 
 	req.ChannelId = id
 	req.WriteBody(&pkt.Session{
-		Account:     tk.Account,
-		ChannelId:   id,
-		GateId:      h.ServiceID,
-		Password:    tk.Password,
-		App:         tk.App,
-		AccessToken: tk.AccessToken,
-		RemoteIP:    getIP(conn.RemoteAddr().String()),
+		Account:   tk.Account,
+		ChannelId: id,
+		GateId:    h.ServiceID,
+		App:       tk.App,
+		RemoteIP:  getIP(conn.RemoteAddr().String()),
 	})
 	req.AddStringMeta(MetaKeyApp, tk.App)
 	req.AddStringMeta(MetaKeyAccount, tk.Account)
