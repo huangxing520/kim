@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/klintcheng/kim"
+	"github.com/klintcheng/kim/internal/config"
 	"github.com/klintcheng/kim/internal/naming"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -17,15 +18,22 @@ type Pool struct {
 	mu          sync.RWMutex
 	conns       map[string]*grpc.ClientConn
 	rr          *roundRobin
+	cfg         config.ResilienceConfig
 }
 
 // NewPool 创建连接池，监听指定服务的变更
 func NewPool(ns naming.Naming, serviceName string) *Pool {
+	return NewPoolWithConfig(ns, serviceName, config.DefaultResilienceConfig())
+}
+
+// NewPoolWithConfig 创建带弹性配置的连接池
+func NewPoolWithConfig(ns naming.Naming, serviceName string, cfg config.ResilienceConfig) *Pool {
 	p := &Pool{
 		naming:      ns,
 		serviceName: serviceName,
 		conns:       make(map[string]*grpc.ClientConn),
 		rr:          newRoundRobin(),
+		cfg:         cfg,
 	}
 	if ns != nil {
 		go p.watch()
@@ -57,6 +65,32 @@ func (p *Pool) GetAny() (*grpc.ClientConn, error) {
 	}
 	id := p.rr.Next(ids)
 	return p.conns[id], nil
+}
+
+// GetAnyExcluding round-robin 选一个连接，排除指定的 serviceID（用于 fallback）
+func (p *Pool) GetAnyExcluding(excludeID string) (*grpc.ClientConn, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if len(p.conns) == 0 {
+		return nil, fmt.Errorf("no available %s instance", p.serviceName)
+	}
+	ids := make([]string, 0, len(p.conns))
+	for id := range p.conns {
+		if id == excludeID {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("no available %s instance (excluding %s)", p.serviceName, excludeID)
+	}
+	id := p.rr.Next(ids)
+	return p.conns[id], nil
+}
+
+// Interceptors 返回指定实例的客户端拦截器链
+func (p *Pool) Interceptors(instanceID string) []grpc.UnaryClientInterceptor {
+	return InterceptorChain(p.serviceName, instanceID, p.cfg)
 }
 
 // watch 订阅服务变更，自动建连/断连
