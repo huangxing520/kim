@@ -3,6 +3,7 @@ node_id: 0
 listen: ":9002"
 public_address: "127.0.0.1"
 public_port: 9002
+monitor_port: 8009
 tags: []
 consul_url: "http://127.0.0.1:8500"
 redis_addrs: "127.0.0.1:6379"

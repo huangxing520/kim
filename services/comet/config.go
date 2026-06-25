@@ -11,6 +11,7 @@ type Config struct {
 	Listen          string                  `mapstructure:"listen"`
 	PublicAddress   string                  `mapstructure:"public_address"`
 	PublicPort      int                     `mapstructure:"public_port"`
+	MonitorPort     int                     `mapstructure:"monitor_port"`
 	Tags            []string                `mapstructure:"tags"`
 	Zone            string                  `mapstructure:"zone"`
 	ConsulURL       string                  `mapstructure:"consul_url"`
@@ -34,6 +35,9 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"
+	}
+	if cfg.MonitorPort == 0 {
+		cfg.MonitorPort = 8007
 	}
 	// 合并弹性配置默认值
 	defaults := config.DefaultResilienceConfig()

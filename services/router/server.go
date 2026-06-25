@@ -29,6 +29,7 @@ type Server struct {
 	dataPath string
 	app      *iris.Application
 	naming   naming.Naming
+	log      *logger.Logger
 }
 
 // New 创建 Router 服务实例
@@ -44,7 +45,6 @@ func New(ctx context.Context, cfg *Config, dataPath string) (*Server, error) {
 		return nil, err
 	}
 	logger.RouterLogger = log.Sugar()
-	defer log.Close()
 
 	// 2. 加载路由配置
 	mappings, err := conf.LoadMapping(path.Join(dataPath, "mapping.json"))
@@ -95,6 +95,7 @@ func New(ctx context.Context, cfg *Config, dataPath string) (*Server, error) {
 		dataPath: dataPath,
 		app:      app,
 		naming:   ns,
+		log:      log,
 	}, nil
 }
 
@@ -106,5 +107,9 @@ func (s *Server) Start(ctx context.Context) error {
 
 // Stop 关闭 Router HTTP 服务
 func (s *Server) Stop(ctx context.Context) error {
-	return s.app.Shutdown(ctx)
+	err := s.app.Shutdown(ctx)
+	if s.log != nil {
+		_ = s.log.Close()
+	}
+	return err
 }
