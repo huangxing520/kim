@@ -11,7 +11,7 @@ WORKDIR /build
 
 COPY . .
 
-RUN go build -o app ./services
+RUN go build -o app ./cmd/kim
 
 FROM scratch
 

@@ -8,7 +8,7 @@
 GO              ?= go
 GOFLAGS         ?= -mod=readonly
 BINARY_NAME     := kim
-MAIN_PACKAGE    := ./services
+MAIN_PACKAGE    := ./cmd/kim
 BUILD_DIR       := bin
 CONFIG_DIR      := services
 
@@ -65,47 +65,46 @@ tidy:
 
 # ==================== 单服务运行 ====================
 
-## run-gateway: 启动 gateway 网关服务（websocket/tcp 接入）
+## run-gateway: 启动 gateway 网关服务（websocket/tcp 接入 + gRPC）
 run-gateway: build-all
 	@echo "==> 启动 gateway 服务..."
-	@cd services && ../$(BUILD_DIR)/$(BINARY_NAME) gateway \
-		-c ./gateway/conf.yaml \
-		-r ./gateway/route.json \
+	@./$(BUILD_DIR)/$(BINARY_NAME) gateway \
+		-c $(GATEWAY_CONF) \
+		-r $(GATEWAY_ROUTE) \
 		-p ws \
-		> ../$(LOG_DIR)/gateway.log 2>&1 & \
-		echo $$! > ../$(PID_DIR)/gateway.pid
+		> $(LOG_DIR)/gateway.log 2>&1 & \
+		echo $$! > $(PID_DIR)/gateway.pid
 	@echo "==> gateway 已启动, PID: $$(cat $(PID_DIR)/gateway.pid)"
 	@echo "==> 日志: $(LOG_DIR)/gateway.log"
 
-## run-comet: 启动 comet 消息服务（聊天/登录/群组业务）
+## run-comet: 启动 comet 消息服务（聊天/登录/群组业务，gRPC）
 run-comet: build-all
 	@echo "==> 启动 comet 服务..."
-	@cd services && ../$(BUILD_DIR)/$(BINARY_NAME) comet \
-		-c ./comet/conf.yaml \
-		-s chat \
-		> ../$(LOG_DIR)/comet.log 2>&1 & \
-		echo $$! > ../$(PID_DIR)/comet.pid
+	@./$(BUILD_DIR)/$(BINARY_NAME) comet \
+		-c $(COMET_CONF) \
+		> $(LOG_DIR)/comet.log 2>&1 & \
+		echo $$! > $(PID_DIR)/comet.pid
 	@echo "==> comet 已启动, PID: $$(cat $(PID_DIR)/comet.pid)"
 	@echo "==> 日志: $(LOG_DIR)/comet.log"
 
-## run-logic: 启动 logic 数据服务（HTTP API + MySQL，服务名 royal）
+## run-logic: 启动 logic 数据服务（gRPC + MySQL，服务名 royal）
 run-logic: build-all
 	@echo "==> 启动 logic 服务..."
-	@cd services && ../$(BUILD_DIR)/$(BINARY_NAME) logic \
-		-c ./logic/conf.yaml \
-		> ../$(LOG_DIR)/logic.log 2>&1 & \
-		echo $$! > ../$(PID_DIR)/logic.pid
+	@./$(BUILD_DIR)/$(BINARY_NAME) logic \
+		-c $(LOGIC_CONF) \
+		> $(LOG_DIR)/logic.log 2>&1 & \
+		echo $$! > $(PID_DIR)/logic.pid
 	@echo "==> logic 已启动, PID: $$(cat $(PID_DIR)/logic.pid)"
 	@echo "==> 日志: $(LOG_DIR)/logic.log"
 
-## run-router: 启动 router 路由服务（IP 区域路由）
+## run-router: 启动 router 路由服务（IP 区域路由，HTTP）
 run-router: build-all
 	@echo "==> 启动 router 服务..."
-	@cd services && ../$(BUILD_DIR)/$(BINARY_NAME) router \
-		-c ./router/conf.yaml \
-		-d ./router/data \
-		> ../$(LOG_DIR)/router.log 2>&1 & \
-		echo $$! > ../$(PID_DIR)/router.pid
+	@./$(BUILD_DIR)/$(BINARY_NAME) router \
+		-c $(ROUTER_CONF) \
+		-d $(ROUTER_DATA) \
+		> $(LOG_DIR)/router.log 2>&1 & \
+		echo $$! > $(PID_DIR)/router.pid
 	@echo "==> router 已启动, PID: $$(cat $(PID_DIR)/router.pid)"
 	@echo "==> 日志: $(LOG_DIR)/router.log"
 
@@ -113,27 +112,26 @@ run-router: build-all
 
 ## run-gateway-fg: 前台启动 gateway（用于调试）
 run-gateway-fg: build
-	@cd services && ../$(BUILD_DIR)/$(BINARY_NAME) gateway \
-		-c ./gateway/conf.yaml \
-		-r ./gateway/route.json \
+	@./$(BUILD_DIR)/$(BINARY_NAME) gateway \
+		-c $(GATEWAY_CONF) \
+		-r $(GATEWAY_ROUTE) \
 		-p ws
 
 ## run-comet-fg: 前台启动 comet（用于调试）
 run-comet-fg: build
-	@cd services && ../$(BUILD_DIR)/$(BINARY_NAME) comet \
-		-c ./comet/conf.yaml \
-		-s chat
+	@./$(BUILD_DIR)/$(BINARY_NAME) comet \
+		-c $(COMET_CONF)
 
 ## run-logic-fg: 前台启动 logic（用于调试）
 run-logic-fg: build
-	@cd services && ../$(BUILD_DIR)/$(BINARY_NAME) logic \
-		-c ./logic/conf.yaml
+	@./$(BUILD_DIR)/$(BINARY_NAME) logic \
+		-c $(LOGIC_CONF)
 
 ## run-router-fg: 前台启动 router（用于调试）
 run-router-fg: build
-	@cd services && ../$(BUILD_DIR)/$(BINARY_NAME) router \
-		-c ./router/conf.yaml \
-		-d ./router/data
+	@./$(BUILD_DIR)/$(BINARY_NAME) router \
+		-c $(ROUTER_CONF) \
+		-d $(ROUTER_DATA)
 
 # ==================== 启动全部服务 ====================
 
@@ -141,10 +139,10 @@ run-router-fg: build
 run-all: build-all run-logic run-router run-comet run-gateway
 	@echo ""
 	@echo "==> 全部服务已启动:"
-	@echo "    logic  (royal)   -> :8080  PID: $$(cat $(PID_DIR)/logic.pid)"
-	@echo "    router           -> :8100  PID: $$(cat $(PID_DIR)/router.pid)"
-	@echo "    comet  (chat)    -> :8005  PID: $$(cat $(PID_DIR)/comet.pid)"
-	@echo "    gateway (ws)     -> :8000  PID: $$(cat $(PID_DIR)/gateway.pid)"
+	@echo "    logic  (royal)   -> gRPC :9002  PID: $$(cat $(PID_DIR)/logic.pid)"
+	@echo "    router           -> HTTP :8100  PID: $$(cat $(PID_DIR)/router.pid)"
+	@echo "    comet  (chat)    -> gRPC :8005  PID: $$(cat $(PID_DIR)/comet.pid)"
+	@echo "    gateway (ws)     -> WS :8000 + gRPC :9001  PID: $$(cat $(PID_DIR)/gateway.pid)"
 	@echo ""
 	@echo "==> 使用 'make status' 查看运行状态, 'make stop-all' 停止全部"
 

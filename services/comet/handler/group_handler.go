@@ -15,9 +15,9 @@ package handler
 
 import (
 	"github.com/klintcheng/kim"
+	"github.com/klintcheng/kim/gen/rpc"
 	"github.com/klintcheng/kim/services/comet/service"
 	"github.com/klintcheng/kim/wire/pkt"
-	"github.com/klintcheng/kim/wire/rpc"
 )
 
 // GroupHandler 群组处理器

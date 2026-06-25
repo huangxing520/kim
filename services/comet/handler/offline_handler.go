@@ -15,9 +15,9 @@ import (
 	"errors"
 
 	"github.com/klintcheng/kim"
+	"github.com/klintcheng/kim/gen/rpc"
 	"github.com/klintcheng/kim/services/comet/service"
 	"github.com/klintcheng/kim/wire/pkt"
-	"github.com/klintcheng/kim/wire/rpc"
 )
 
 // OfflineHandler 离线消息处理器

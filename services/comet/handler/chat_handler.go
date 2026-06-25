@@ -17,9 +17,9 @@ import (
 	"time"
 
 	"github.com/klintcheng/kim"
+	"github.com/klintcheng/kim/gen/rpc"
 	"github.com/klintcheng/kim/services/comet/service"
 	"github.com/klintcheng/kim/wire/pkt"
-	"github.com/klintcheng/kim/wire/rpc"
 )
 
 // ErrNoDestination 消息缺少目标
