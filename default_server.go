@@ -38,6 +38,7 @@ import (
 	"github.com/gobwas/pool/pbufio"
 	"github.com/gobwas/ws"
 	"github.com/klintcheng/kim/internal/logger"
+	"github.com/klintcheng/kim/internal/util"
 	"github.com/panjf2000/ants/v2"
 	"github.com/segmentio/ksuid"
 )
@@ -157,6 +158,7 @@ func (s *DefaultServer) Start() error {
 }
 
 func (s *DefaultServer) connHandler(rawconn net.Conn, gpool *ants.Pool) {
+	defer util.Recover(fmt.Sprintf("%s.connHandler remote=%s", s.Name(), rawconn.RemoteAddr()))
 	rd := pbufio.GetReader(rawconn, ws.DefaultServerReadBufferSize)
 	wr := pbufio.GetWriter(rawconn, ws.DefaultServerWriteBufferSize)
 	defer func() {

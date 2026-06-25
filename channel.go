@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/klintcheng/kim/internal/logger"
+	"github.com/klintcheng/kim/internal/util"
 	"github.com/panjf2000/ants/v2"
 )
 
@@ -59,6 +60,7 @@ func NewChannel(id string, meta Meta, conn Conn, gpool *ants.Pool) Channel {
 		state:     0,
 	}
 	go func() {
+		defer util.Recover(fmt.Sprintf("channel.writeloop id=%s", id))
 		err := ch.writeloop()
 		if err != nil {
 			logger.CommonLogger.WithFields(logger.Fields{
@@ -229,8 +231,7 @@ func (ch *ChannelImpl) Readloop(lst MessageListener) error {
 			continue
 		}
 		err = ch.gpool.Submit(func() {
-			// Submit a new task to the gpool (which is an instance of a goroutine pool).
-			// This task calls lst.Receive with the channel and payload as parameters.
+			defer util.Recover(fmt.Sprintf("channel.Receive id=%s", ch.id))
 			lst.Receive(ch, payload)
 		})
 		if err != nil {

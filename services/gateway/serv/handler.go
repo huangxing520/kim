@@ -20,11 +20,12 @@ package serv
 import (
 	"bytes"
 	"fmt"
-	"strings" // 【修复#3】新加的：用 strings.LastIndex 替代正则表达式
+	"strings"
 	"time"
 
 	"github.com/klintcheng/kim"
 	"github.com/klintcheng/kim/internal/logger"
+	"github.com/klintcheng/kim/internal/util"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/pkt"
 	"github.com/klintcheng/kim/wire/token"
@@ -50,6 +51,7 @@ type Handler struct {
 
 // Accept this connection
 func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta, error) {
+	defer util.Recover("gateway.Accept")
 	// 1. 读取登录包
 	_ = conn.SetReadDeadline(time.Now().Add(timeout))
 	frame, err := conn.ReadFrame()
@@ -136,6 +138,7 @@ func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta
 
 // Receive default listener
 func (h *Handler) Receive(ag kim.Agent, payload []byte) {
+	defer util.Recover(fmt.Sprintf("gateway.Receive channel=%s", ag.ID()))
 	buf := bytes.NewBuffer(payload)
 	packet, err := pkt.Read(buf)
 	if err != nil {
@@ -173,6 +176,7 @@ func (h *Handler) Receive(ag kim.Agent, payload []byte) {
 
 // Disconnect default listener
 func (h *Handler) Disconnect(id string) error {
+	defer util.Recover(fmt.Sprintf("gateway.Disconnect id=%s", id))
 	logger.GatewayLogger.WithFields(logger.Fields{
 		"service": "gateway",
 		"pkg":     "serv",
