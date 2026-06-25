@@ -16,7 +16,7 @@ import (
 
 	"github.com/klintcheng/kim"
 	"github.com/klintcheng/kim/gen/rpc"
-	"github.com/klintcheng/kim/logger"
+	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/pkt"
 )

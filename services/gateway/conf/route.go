@@ -14,7 +14,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/klintcheng/kim/logger"
+	"github.com/klintcheng/kim/internal/logger"
 )
 
 // Zone 区域定义（ID + 权重）
@@ -60,7 +60,7 @@ func ReadRoute(path string) (*Route, error) {
 	}
 	// build slots
 	for i, zone := range conf.Zones {
-		// 1.通过权重生成分片中的slots 
+		// 1.通过权重生成分片中的slots
 		shard := make([]int, zone.Weight)
 		// 2. 给当前slots设置值，指向索引i
 		for j := 0; j < zone.Weight; j++ {

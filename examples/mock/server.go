@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/klintcheng/kim"
-	"github.com/klintcheng/kim/naming"
+	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/tcp"
 	"github.com/klintcheng/kim/websocket"
 )

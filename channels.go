@@ -17,7 +17,7 @@ package kim
 import (
 	"sync"
 
-	"github.com/klintcheng/kim/logger"
+	"github.com/klintcheng/kim/internal/logger"
 )
 
 // ChannelMap Channel 集合接口

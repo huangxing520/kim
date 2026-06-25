@@ -19,9 +19,9 @@ import (
 
 	"github.com/klintcheng/kim"
 	"github.com/klintcheng/kim/gen/rpc"
+	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/internal/server"
-	"github.com/klintcheng/kim/logger"
 	"github.com/klintcheng/kim/services/gateway/serv"
 	"github.com/klintcheng/kim/tcp"
 	"github.com/klintcheng/kim/websocket"

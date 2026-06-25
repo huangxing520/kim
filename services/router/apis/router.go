@@ -22,8 +22,8 @@ import (
 
 	"github.com/kataras/iris/v12"
 	"github.com/klintcheng/kim"
-	"github.com/klintcheng/kim/logger"
-	"github.com/klintcheng/kim/naming"
+	"github.com/klintcheng/kim/internal/logger"
+	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/services/router/conf"
 	"github.com/klintcheng/kim/services/router/ipregion"
 	"github.com/klintcheng/kim/wire"

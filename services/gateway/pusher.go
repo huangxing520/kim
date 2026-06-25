@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/klintcheng/kim/gen/rpc"
-	"github.com/klintcheng/kim/logger"
+	"github.com/klintcheng/kim/internal/logger"
 )
 
 // Pusher 实现 rpc.GatewayServiceServer，接收 Comet 推送的消息并写入客户端 channel

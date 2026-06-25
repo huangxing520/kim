@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/klintcheng/kim"
-	"github.com/klintcheng/kim/logger"
+	"github.com/klintcheng/kim/internal/logger"
 )
 
 // ClientOptions TCP 客户端配置

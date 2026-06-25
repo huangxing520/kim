@@ -1,13 +1,7 @@
-Kafka:
-  Enable: true
-  Brokers:
-    - localhost:29092
-    - localhost:29192
-    - localhost:29292
-  Topic: kim_logs
-  BufferSize: 1024
-  Timeout: "10s"
-  ReplicationFactor: 3
-  Partitions: 3
-Development: true
-LogLevel: "info"
+listen: ":8100"
+consul_url: "http://127.0.0.1:8500"
+log_level: "info"
+kafka:
+  enable: false
+  brokers: []
+  topic: "kim_logs"

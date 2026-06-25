@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/klintcheng/kim"
-	"github.com/klintcheng/kim/naming"
+	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/services/router/conf"
 	"github.com/stretchr/testify/assert"
 )

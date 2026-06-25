@@ -492,3 +492,19 @@ func InitConfig(file string) (*Config, error) {
 	}
 	return &config, nil
 }
+
+// init 初始化 CommonLogger，使用默认配置（不加载文件）。
+// 容错：若初始化失败（如 ./data/ 目录不存在），静默返回，不 panic。
+// 各服务在自身 Init 阶段会调用 Init() 覆盖为带服务名的独立 logger。
+func init() {
+	log, err := Init(Settings{
+		Level:       "info",
+		Filename:    "./data/common.log",
+		ServiceName: "common",
+	})
+	if err != nil {
+		// 用标准 log 作为 fallback，不 panic
+		return
+	}
+	CommonLogger = log.Sugar()
+}

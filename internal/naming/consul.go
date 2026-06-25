@@ -30,7 +30,7 @@ import (
 
 	"github.com/hashicorp/consul/api"
 	"github.com/klintcheng/kim"
-	"github.com/klintcheng/kim/logger"
+	"github.com/klintcheng/kim/internal/logger"
 )
 
 // Consul ServiceMeta 中的 key 常量

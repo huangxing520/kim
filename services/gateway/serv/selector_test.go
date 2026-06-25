@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/klintcheng/kim"
-	"github.com/klintcheng/kim/naming"
+	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/pkt"
 	"github.com/segmentio/ksuid"

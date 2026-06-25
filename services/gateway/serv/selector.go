@@ -18,7 +18,7 @@ import (
 	"math/rand"
 
 	"github.com/klintcheng/kim"
-	"github.com/klintcheng/kim/logger"
+	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/services/gateway/conf"
 	"github.com/klintcheng/kim/wire/pkt"
 )

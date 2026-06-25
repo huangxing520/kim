@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v7"
-	"github.com/klintcheng/kim/logger"
+	"github.com/klintcheng/kim/internal/logger"
 )
 
 // KeyMessageAckIndex 生成已读消息索引的 Redis key

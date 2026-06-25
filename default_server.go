@@ -37,7 +37,7 @@ import (
 
 	"github.com/gobwas/pool/pbufio"
 	"github.com/gobwas/ws"
-	"github.com/klintcheng/kim/logger"
+	"github.com/klintcheng/kim/internal/logger"
 	"github.com/panjf2000/ants/v2"
 	"github.com/segmentio/ksuid"
 )

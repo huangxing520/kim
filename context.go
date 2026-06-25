@@ -22,7 +22,7 @@ package kim
 
 import (
 	// 【修复#6】去掉原 "sync" 导入，ContextImpl 不再嵌入未使用的 sync.Mutex
-	"github.com/klintcheng/kim/logger"
+	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/pkt"
 	"google.golang.org/protobuf/proto"
