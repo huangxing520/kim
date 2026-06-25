@@ -114,6 +114,8 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	grpcSrv, err := server.NewGRPCServer(cfg.Listen,
 		server.WithServiceName("logic"),
 		server.WithLimiter(cfg.Resilience.Limiter),
+		server.WithGRPCConfig(cfg.GRPC),
+		server.WithAuthSecret(cfg.AppSecret),
 	)
 	if err != nil {
 		return nil, err

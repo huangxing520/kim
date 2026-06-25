@@ -35,10 +35,10 @@ type CometForwarder struct {
 }
 
 // NewCometForwarder 创建 CometForwarder
-func NewCometForwarder(ns naming.Naming, selector *serv.RouteSelector, gatewayID string, cfg config.ResilienceConfig) *CometForwarder {
+func NewCometForwarder(ns naming.Naming, selector *serv.RouteSelector, gatewayID string, cfg config.ResilienceConfig, grpcCfg config.GRPCConfig) *CometForwarder {
 	return &CometForwarder{
 		ns:        ns,
-		pool:      client.NewPoolWithConfig(ns, wire.SNChat, cfg), // "chat"
+		pool:      client.NewPoolWithConfig(ns, wire.SNChat, cfg, grpcCfg),
 		selector:  selector,
 		gatewayID: gatewayID,
 		cfg:       cfg,

@@ -25,6 +25,7 @@ type Config struct {
 	Kafka         model.KafkaSettings     `mapstructure:"kafka"`
 	Resilience    config.ResilienceConfig `mapstructure:"resilience"`
 	Trace         config.TraceConfig      `mapstructure:"trace"`
+	GRPC          config.GRPCConfig       `mapstructure:"grpc"`
 }
 
 func LoadConfig(path string) (*Config, error) {

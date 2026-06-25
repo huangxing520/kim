@@ -1,7 +1,48 @@
+service_id: "router-1"
 listen: ":8100"
+public_address: "127.0.0.1"
+public_port: 8100
+monitor_port: 8011
 consul_url: "http://127.0.0.1:8500"
 log_level: "info"
 kafka:
   enable: false
   brokers: []
   topic: "kim_logs"
+resilience:
+  breaker:
+    enable: true
+    strategy: "both"
+    threshold: 0.5
+    slow_call_rtt: "500ms"
+    slow_call_ratio: 0.5
+    retry_timeout_ms: 5000
+    min_request_amount: 10
+    stat_interval_ms: 1000
+  retry:
+    enable: true
+    max_attempts: 3
+    initial_backoff: "50ms"
+    max_backoff: "500ms"
+    multiplier: 2.0
+    jitter: 0.1
+  timeout:
+    enable: true
+    default: "3s"
+  limiter:
+    enable: true
+    client_qps: 100
+    server_qps: 200
+trace:
+  enable: false
+  exporter: "otlp"
+  endpoint: "127.0.0.1:4317"
+  sampling_ratio: 0.1
+  insecure: true
+grpc:
+  tls_enable: false
+  tls_cert_file: ""
+  tls_key_file: ""
+  tls_ca_file: ""
+  auth_enable: false
+  reflection: false

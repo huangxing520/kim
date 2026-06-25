@@ -54,3 +54,11 @@ trace:
   endpoint: "127.0.0.1:4317"  # OTLP gRPC collector 地址
   sampling_ratio: 0.1         # 采样率 0.0~1.0
   insecure: true              # 是否用 plaintext（无 TLS）
+grpc:
+  tls_enable: false
+  tls_cert_file: ""
+  tls_key_file: ""
+  tls_ca_file: ""
+  auth_enable: false
+  reflection: false
+app_secret: "kim-dev-secret-change-in-production-32b"

@@ -87,7 +87,7 @@ func New(ctx context.Context, cfg *Config, routePath string, protocol string) (*
 	}
 
 	// 4. gRPC forwarder（调 Comet，挂载弹性拦截器）
-	forwarder := NewCometForwarder(ns, selector, cfg.ServiceID, cfg.Resilience)
+	forwarder := NewCometForwarder(ns, selector, cfg.ServiceID, cfg.Resilience, cfg.GRPC)
 
 	// 5. WS/TCP 接入层
 	handler := &serv.Handler{
@@ -126,6 +126,8 @@ func New(ctx context.Context, cfg *Config, routePath string, protocol string) (*
 	grpcSrv, err := server.NewGRPCServer(cfg.GRPCListen,
 		server.WithServiceName("gateway"),
 		server.WithLimiter(cfg.Resilience.Limiter),
+		server.WithGRPCConfig(cfg.GRPC),
+		server.WithAuthSecret(cfg.AppSecret),
 	)
 	if err != nil {
 		return nil, err

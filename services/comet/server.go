@@ -87,8 +87,8 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 
 	// 4. gRPC client pool（挂载弹性拦截器）
-	logicPool := client.NewPoolWithConfig(ns, wire.SNService, cfg.Resilience) // "royal"
-	gwPool := client.NewPoolWithConfig(ns, wire.SNWGateway, cfg.Resilience)   // "wgateway"
+	logicPool := client.NewPoolWithConfig(ns, wire.SNService, cfg.Resilience, cfg.GRPC)
+	gwPool := client.NewPoolWithConfig(ns, wire.SNWGateway, cfg.Resilience, cfg.GRPC)
 
 	// 5. service clients（LogicClient 接入 ResilientClient：重试 + fallback 换实例）
 	logicCli := service.NewLogicClient(logicPool, cfg.Resilience)
@@ -121,6 +121,8 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	grpcSrv, err := server.NewGRPCServer(cfg.Listen,
 		server.WithServiceName("comet"),
 		server.WithLimiter(cfg.Resilience.Limiter),
+		server.WithGRPCConfig(cfg.GRPC),
+		server.WithAuthSecret(cfg.AppSecret),
 	)
 	if err != nil {
 		return nil, err
