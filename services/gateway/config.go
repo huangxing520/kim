@@ -33,6 +33,7 @@ type Config struct {
 	ConnectionGPool int                 `mapstructure:"connection_g_pool"`
 	Protocol        string              `mapstructure:"protocol"`
 	Kafka           model.KafkaSettings `mapstructure:"kafka"`
+	Resilience      config.ResilienceConfig `mapstructure:"resilience"`
 }
 
 // LoadConfig 从指定路径加载配置
@@ -58,6 +59,11 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if cfg.MonitorPort == 0 {
 		cfg.MonitorPort = 8001
+	}
+	// 合并弹性配置默认值
+	defaults := config.DefaultResilienceConfig()
+	if !cfg.Resilience.Breaker.Enable {
+		cfg.Resilience = defaults
 	}
 	return &cfg, nil
 }

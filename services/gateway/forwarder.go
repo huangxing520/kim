@@ -18,6 +18,7 @@ import (
 	"github.com/klintcheng/kim"
 	"github.com/klintcheng/kim/gen/rpc"
 	"github.com/klintcheng/kim/internal/client"
+	"github.com/klintcheng/kim/internal/config"
 	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/services/gateway/serv"
 	"github.com/klintcheng/kim/wire"
@@ -30,15 +31,17 @@ type CometForwarder struct {
 	pool      *client.Pool
 	selector  *serv.RouteSelector
 	gatewayID string // 本 Gateway 的 ServiceID，用于注入 MetaDestServer
+	cfg       config.ResilienceConfig
 }
 
 // NewCometForwarder 创建 CometForwarder
-func NewCometForwarder(ns naming.Naming, selector *serv.RouteSelector, gatewayID string) *CometForwarder {
+func NewCometForwarder(ns naming.Naming, selector *serv.RouteSelector, gatewayID string, cfg config.ResilienceConfig) *CometForwarder {
 	return &CometForwarder{
 		ns:        ns,
-		pool:      client.NewPool(ns, wire.SNChat), // "chat"
+		pool:      client.NewPoolWithConfig(ns, wire.SNChat, cfg), // "chat"
 		selector:  selector,
 		gatewayID: gatewayID,
+		cfg:       cfg,
 	}
 }
 

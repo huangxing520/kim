@@ -19,6 +19,7 @@ import (
 
 	"github.com/klintcheng/kim"
 	"github.com/klintcheng/kim/gen/rpc"
+	"github.com/klintcheng/kim/internal/client"
 	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/internal/server"
@@ -60,14 +61,19 @@ func New(ctx context.Context, cfg *Config, routePath string, protocol string) (*
 		return nil, err
 	}
 
+	// 2.5 初始化 Sentinel（断路器 + 限流器）
+	if err := client.InitSentinel(); err != nil {
+		logger.GatewayLogger.Warnf("init sentinel (resilience disabled): %v", err)
+	}
+
 	// 3. 路由选择器
 	selector, err := serv.NewRouteSelector(routePath)
 	if err != nil {
 		return nil, err
 	}
 
-	// 4. gRPC forwarder（调 Comet）
-	forwarder := NewCometForwarder(ns, selector, cfg.ServiceID)
+	// 4. gRPC forwarder（调 Comet，挂载弹性拦截器）
+	forwarder := NewCometForwarder(ns, selector, cfg.ServiceID, cfg.Resilience)
 
 	// 5. WS/TCP 接入层
 	handler := &serv.Handler{
@@ -102,8 +108,11 @@ func New(ctx context.Context, cfg *Config, routePath string, protocol string) (*
 	wsSrv.SetMessageListener(handler)
 	wsSrv.SetStateListener(handler)
 
-	// 6. gRPC server（接收 Comet Push）
-	grpcSrv, err := server.NewGRPCServer(cfg.GRPCListen, server.WithServiceName("gateway"))
+	// 6. gRPC server（接收 Comet Push，挂载服务端限流）
+	grpcSrv, err := server.NewGRPCServer(cfg.GRPCListen,
+		server.WithServiceName("gateway"),
+		server.WithLimiter(cfg.Resilience.Limiter),
+	)
 	if err != nil {
 		return nil, err
 	}
