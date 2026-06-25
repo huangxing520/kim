@@ -6,21 +6,22 @@ import (
 )
 
 type Config struct {
-	ServiceID     string              `mapstructure:"service_id"`
-	NodeID        int64               `mapstructure:"node_id"`
-	Listen        string              `mapstructure:"listen"`
-	PublicAddress string              `mapstructure:"public_address"`
-	PublicPort    int                 `mapstructure:"public_port"`
-	Tags          []string            `mapstructure:"tags"`
-	ConsulURL     string              `mapstructure:"consul_url"`
-	RedisAddrs    string              `mapstructure:"redis_addrs"`
-	Driver        string              `mapstructure:"driver"`
-	BaseDb        string              `mapstructure:"base_db"`
-	MessageDb     string              `mapstructure:"message_db"`
-	LogLevel      string              `mapstructure:"log_level"`
-	Kafka         model.KafkaSettings `mapstructure:"kafka"`
+	ServiceID     string                  `mapstructure:"service_id"`
+	NodeID        int64                   `mapstructure:"node_id"`
+	Listen        string                  `mapstructure:"listen"`
+	PublicAddress string                  `mapstructure:"public_address"`
+	PublicPort    int                     `mapstructure:"public_port"`
+	MonitorPort   int                     `mapstructure:"monitor_port"`
+	Tags          []string                `mapstructure:"tags"`
+	ConsulURL     string                  `mapstructure:"consul_url"`
+	RedisAddrs    string                  `mapstructure:"redis_addrs"`
+	Driver        string                  `mapstructure:"driver"`
+	BaseDb        string                  `mapstructure:"base_db"`
+	MessageDb     string                  `mapstructure:"message_db"`
+	LogLevel      string                  `mapstructure:"log_level"`
+	Kafka         model.KafkaSettings     `mapstructure:"kafka"`
 	Resilience    config.ResilienceConfig `mapstructure:"resilience"`
-	Trace         config.TraceConfig `mapstructure:"trace"`
+	Trace         config.TraceConfig      `mapstructure:"trace"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -36,6 +37,9 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"
+	}
+	if cfg.MonitorPort == 0 {
+		cfg.MonitorPort = 8009
 	}
 	// 合并弹性配置默认值
 	defaults := config.DefaultResilienceConfig()

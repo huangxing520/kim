@@ -19,6 +19,7 @@ import (
 	"hash/crc32"
 
 	"github.com/go-redis/redis/v7"
+	"gorm.io/gorm"
 
 	"github.com/klintcheng/kim/gen/rpc"
 	"github.com/klintcheng/kim/internal/client"
@@ -36,6 +37,9 @@ type Server struct {
 	config        *Config
 	grpcSrv       *server.GRPCServer
 	naming        naming.Naming
+	baseDb        *gorm.DB
+	messageDb     *gorm.DB
+	log           *logger.Logger
 	traceShutdown func()
 }
 
@@ -52,7 +56,12 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, err
 	}
 	logger.LogicLogger = log.Sugar()
-	defer log.Close()
+	logClosed := false
+	defer func() {
+		if !logClosed {
+			_ = log.Close()
+		}
+	}()
 
 	// 初始化 DB
 	baseDb, err := database.InitDb(cfg.Driver, cfg.BaseDb)
@@ -123,7 +132,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		Protocol: "grpc",
 		Tags:     cfg.Tags,
 		Meta: map[string]string{
-			naming.KeyHealthURL: fmt.Sprintf("http://%s:%d/health", cfg.PublicAddress, cfg.PublicPort),
+			naming.KeyHealthURL: fmt.Sprintf("http://%s:%d/health", cfg.PublicAddress, cfg.MonitorPort),
 		},
 	})
 
@@ -131,14 +140,25 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		config:        cfg,
 		grpcSrv:       grpcSrv,
 		naming:        ns,
+		baseDb:        baseDb,
+		messageDb:     messageDb,
+		log:           log,
 		traceShutdown: traceShutdown,
 	}
+	logClosed = true
 
 	return s, nil
 }
 
 // Start 启动 gRPC 服务（阻塞）
 func (s *Server) Start(ctx context.Context) error {
+	monitorAddr := fmt.Sprintf(":%d", s.config.MonitorPort)
+	go func() {
+		if err := server.StartMonitorHTTP(monitorAddr); err != nil {
+			logger.LogicLogger.Errorf("monitor http error: %v", err)
+		}
+	}()
+	logger.LogicLogger.Infof("logic monitor listening on %s", monitorAddr)
 	logger.LogicLogger.Infof("logic service starting on %s", s.config.Listen)
 	return s.grpcSrv.Start()
 }
@@ -149,8 +169,21 @@ func (s *Server) Stop(ctx context.Context) error {
 		_ = s.naming.Deregister(s.config.ServiceID)
 	}
 	s.grpcSrv.GracefulStop()
+	if s.baseDb != nil {
+		if sqlDB, err := s.baseDb.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	}
+	if s.messageDb != nil {
+		if sqlDB, err := s.messageDb.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	}
 	if s.traceShutdown != nil {
 		s.traceShutdown()
+	}
+	if s.log != nil {
+		_ = s.log.Close()
 	}
 	return nil
 }

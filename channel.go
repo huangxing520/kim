@@ -34,6 +34,7 @@ type ChannelImpl struct {
 	Conn
 	meta      Meta
 	writechan chan []byte
+	closeChan chan struct{}
 	writeWait time.Duration
 	readwait  time.Duration
 	gpool     *ants.Pool
@@ -51,6 +52,7 @@ func NewChannel(id string, meta Meta, conn Conn, gpool *ants.Pool) Channel {
 		// 群聊消息风暴场景容易触发背压
 		// 新加的：扩大写缓冲区到 32，抗突发流量
 		writechan: make(chan []byte, 32), // 新加的：缓冲区从 5 扩大到 32
+		closeChan: make(chan struct{}),
 		writeWait: DefaultWriteWait,      //default value
 		readwait:  DefaultReadWait,
 		gpool:     gpool,
@@ -77,35 +79,65 @@ func (ch *ChannelImpl) writeloop() error {
 	defer func() {
 		log.Debugf("channel %s writeloop exited", ch.id)
 	}()
-	for payload := range ch.writechan {
-		err := ch.WriteFrame(OpBinary, payload)
-		if err != nil {
-			return err
+
+	// writeFrame 写一帧，根据 payload 判断 OpCode
+	writeFrame := func(payload []byte) error {
+		if payload == nil {
+			return ch.WriteFrame(OpPong, nil)
 		}
-		// 【修复#15】批量取出缓冲区内的剩余消息，统一 Flush 减少系统调用次数
-		// WriteFrame 写入 bufio.Writer 缓冲区，Flush 才真正发送到网络
-		flushed := false
-		for !flushed {
+		return ch.WriteFrame(OpBinary, payload)
+	}
+
+	// flushAll 非阻塞地 drain writechan 中所有剩余数据并 Flush
+	flushAll := func() error {
+		for {
 			select {
 			case payload, ok := <-ch.writechan:
 				if !ok {
-					// channel 已关闭，写入已缓冲的数据后退出
 					return ch.Flush()
 				}
-				err := ch.WriteFrame(OpBinary, payload)
-				if err != nil {
+				if err := writeFrame(payload); err != nil {
 					return err
 				}
 			default:
-				// 缓冲区已排空，统一 Flush
-				if err := ch.Flush(); err != nil {
-					return err
-				}
-				flushed = true
+				return ch.Flush()
 			}
 		}
 	}
-	return nil
+
+	for {
+		select {
+		case payload, ok := <-ch.writechan:
+			if !ok {
+				return nil
+			}
+			if err := writeFrame(payload); err != nil {
+				return err
+			}
+			// 批量取出缓冲区内的剩余消息，统一 Flush 减少系统调用次数
+			flushed := false
+			for !flushed {
+				select {
+				case payload, ok = <-ch.writechan:
+					if !ok {
+						return ch.Flush()
+					}
+					if err := writeFrame(payload); err != nil {
+						return err
+					}
+				case <-ch.closeChan:
+					return flushAll()
+				default:
+					if err := ch.Flush(); err != nil {
+						return err
+					}
+					flushed = true
+				}
+			}
+		case <-ch.closeChan:
+			return flushAll()
+		}
+	}
 }
 
 // ID id simpling server
@@ -116,9 +148,12 @@ func (ch *ChannelImpl) Push(payload []byte) error {
 	if atomic.LoadInt32(&ch.state) != 1 {
 		return fmt.Errorf("channel %s has closed", ch.id)
 	}
-	// 异步写
-	ch.writechan <- payload
-	return nil
+	select {
+	case ch.writechan <- payload:
+		return nil
+	case <-ch.closeChan:
+		return fmt.Errorf("channel %s has closed", ch.id)
+	}
 }
 
 // Close 关闭连接
@@ -126,7 +161,7 @@ func (ch *ChannelImpl) Close() error {
 	if !atomic.CompareAndSwapInt32(&ch.state, 1, 2) {
 		return fmt.Errorf("channel has started")
 	}
-	close(ch.writechan)
+	close(ch.closeChan)
 	return nil
 }
 
@@ -181,8 +216,11 @@ func (ch *ChannelImpl) Readloop(lst MessageListener) error {
 			// If the received frame has an OpCode of OpPing, log that we received a ping and respond with a pong.
 			log.Trace("recv a ping; resp with a pong")
 
-			_ = ch.WriteFrame(OpPong, nil)
-			_ = ch.Flush()
+			select {
+			case ch.writechan <- nil:
+			case <-ch.closeChan:
+				return errors.New("channel closed during ping")
+			}
 			continue
 		}
 		payload := frame.GetPayload()

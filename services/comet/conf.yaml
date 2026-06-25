@@ -2,6 +2,7 @@ service_id: "comet-1"
 listen: ":8005"
 public_address: "127.0.0.1"
 public_port: 8005
+monitor_port: 8007
 tags:
   - server
 zone: "zone_ali_03"

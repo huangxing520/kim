@@ -39,6 +39,7 @@ type Server struct {
 	grpcSrv       *server.GRPCServer // 接收 Comet Push
 	forwarder     *CometForwarder    // gRPC client 调用 Comet
 	naming        naming.Naming
+	log           *logger.Logger
 	traceShutdown func()
 }
 
@@ -55,7 +56,12 @@ func New(ctx context.Context, cfg *Config, routePath string, protocol string) (*
 		return nil, err
 	}
 	logger.GatewayLogger = log.Sugar()
-	defer log.Close()
+	logClosed := false
+	defer func() {
+		if !logClosed {
+			_ = log.Close()
+		}
+	}()
 
 	// 2. Consul naming
 	ns, err := naming.NewNaming(cfg.ConsulURL)
@@ -141,6 +147,7 @@ func New(ctx context.Context, cfg *Config, routePath string, protocol string) (*
 		},
 	}
 	_ = ns.Register(grpcService)
+	logClosed = true
 
 	return &Server{
 		config:        cfg,
@@ -150,6 +157,7 @@ func New(ctx context.Context, cfg *Config, routePath string, protocol string) (*
 		grpcSrv:       grpcSrv,
 		forwarder:     forwarder,
 		naming:        ns,
+		log:           log,
 		traceShutdown: traceShutdown,
 	}, nil
 }
@@ -162,7 +170,14 @@ func (s *Server) Start(ctx context.Context) error {
 			logger.GatewayLogger.Errorf("grpc server error: %v", err)
 		}
 	}()
+	monitorAddr := fmt.Sprintf(":%d", s.config.MonitorPort)
+	go func() {
+		if err := server.StartMonitorHTTP(monitorAddr); err != nil {
+			logger.GatewayLogger.Errorf("monitor http error: %v", err)
+		}
+	}()
 	logger.GatewayLogger.Infof("gateway grpc listening on %s", s.config.GRPCListen)
+	logger.GatewayLogger.Infof("gateway monitor listening on %s", monitorAddr)
 	logger.GatewayLogger.Infof("gateway %s listening on %s", s.protocol, s.config.Listen)
 	// 启动 WS/TCP server（阻塞）
 	return s.wsSrv.Start()
@@ -178,6 +193,9 @@ func (s *Server) Stop(ctx context.Context) error {
 	err := s.wsSrv.Shutdown(ctx)
 	if s.traceShutdown != nil {
 		s.traceShutdown()
+	}
+	if s.log != nil {
+		_ = s.log.Close()
 	}
 	return err
 }

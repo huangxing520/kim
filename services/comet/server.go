@@ -38,6 +38,7 @@ type Server struct {
 	naming        naming.Naming
 	logicPool     *client.Pool
 	gwPool        *client.Pool
+	log           *logger.Logger
 	traceShutdown func()
 }
 
@@ -54,7 +55,12 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, err
 	}
 	logger.CometLogger = log.Sugar()
-	defer log.Close()
+	logClosed := false
+	defer func() {
+		if !logClosed {
+			_ = log.Close()
+		}
+	}()
 
 	// 2. 初始化 Redis
 	rdb, err := initRedis(cfg.RedisAddrs)
@@ -135,10 +141,11 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		Protocol: "grpc",
 		Tags:     cfg.Tags,
 		Meta: map[string]string{
-			naming.KeyHealthURL: fmt.Sprintf("http://%s:%d/health", cfg.PublicAddress, cfg.PublicPort),
+			naming.KeyHealthURL: fmt.Sprintf("http://%s:%d/health", cfg.PublicAddress, cfg.MonitorPort),
 			"zone":              cfg.Zone,
 		},
 	})
+	logClosed = true
 
 	return &Server{
 		config:        cfg,
@@ -146,12 +153,20 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		naming:        ns,
 		logicPool:     logicPool,
 		gwPool:        gwPool,
+		log:           log,
 		traceShutdown: traceShutdown,
 	}, nil
 }
 
 // Start 启动 gRPC 服务（阻塞）
 func (s *Server) Start(ctx context.Context) error {
+	monitorAddr := fmt.Sprintf(":%d", s.config.MonitorPort)
+	go func() {
+		if err := server.StartMonitorHTTP(monitorAddr); err != nil {
+			logger.CometLogger.Errorf("monitor http error: %v", err)
+		}
+	}()
+	logger.CometLogger.Infof("comet monitor listening on %s", monitorAddr)
 	logger.CometLogger.Infof("comet service starting on %s", s.config.Listen)
 	return s.grpcSrv.Start()
 }
@@ -166,6 +181,9 @@ func (s *Server) Stop(ctx context.Context) error {
 	s.grpcSrv.GracefulStop()
 	if s.traceShutdown != nil {
 		s.traceShutdown()
+	}
+	if s.log != nil {
+		_ = s.log.Close()
 	}
 	return nil
 }
