@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-redis/redis/v7"
+	"github.com/redis/go-redis/v9"
 	"github.com/klintcheng/kim/gen/rpc"
 	"github.com/klintcheng/kim/services/logic/data"
 	"github.com/klintcheng/kim/wire"
@@ -151,24 +151,24 @@ func (h *ServiceHandler) insertGroupMessage(req *rpc.InsertMessageReq) (int64, e
 }
 
 func (h *ServiceHandler) AckMessage(ctx context.Context, req *rpc.AckMessageReq) (*rpc.AckMessageResp, error) {
-	err := setMessageAck(h.Cache, req.Account, req.MessageId)
+	err := setMessageAck(ctx, h.Cache, req.Account, req.MessageId)
 	if err != nil {
 		return nil, err
 	}
 	return &rpc.AckMessageResp{Success: true}, nil
 }
 
-func setMessageAck(cache *redis.Client, account string, msgId int64) error {
+func setMessageAck(ctx context.Context, cache *redis.Client, account string, msgId int64) error {
 	if msgId == 0 {
 		return nil
 	}
 	key := data.KeyMessageAckIndex(account)
-	return cache.Set(key, msgId, wire.OfflineReadIndexExpiresIn).Err()
+	return cache.Set(ctx, key, msgId, wire.OfflineReadIndexExpiresIn).Err()
 }
 
 func (h *ServiceHandler) GetOfflineMessageIndex(ctx context.Context, req *rpc.GetOfflineMessageIndexReq) (*rpc.GetOfflineMessageIndexResp, error) {
 	msgId := req.MessageId
-	start, err := h.getSentTime(req.Account, req.MessageId)
+	start, err := h.getSentTime(ctx, req.Account, req.MessageId)
 	if err != nil {
 		return nil, err
 	}
@@ -179,18 +179,17 @@ func (h *ServiceHandler) GetOfflineMessageIndex(ctx context.Context, req *rpc.Ge
 	if err != nil {
 		return nil, err
 	}
-	err = setMessageAck(h.Cache, req.Account, msgId)
+	err = setMessageAck(ctx, h.Cache, req.Account, msgId)
 	if err != nil {
 		return nil, err
 	}
 	return &rpc.GetOfflineMessageIndexResp{List: indexes}, nil
 }
 
-func (h *ServiceHandler) getSentTime(account string, msgId int64) (int64, error) {
-	// 1. 冷启动情况，从服务端拉取消息索引
+func (h *ServiceHandler) getSentTime(ctx context.Context, account string, msgId int64) (int64, error) {
 	if msgId == 0 {
 		key := data.KeyMessageAckIndex(account)
-		msgId, _ = h.Cache.Get(key).Int64() // 如果一次都没有发ack包，这里就是0
+		msgId, _ = h.Cache.Get(ctx, key).Int64()
 	}
 	var start int64
 	if msgId > 0 {

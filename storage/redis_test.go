@@ -4,15 +4,16 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis/v7"
-	kim "github.com/klintcheng/kim/internal/kim"
+	"github.com/klintcheng/kim/internal/kim"
 	"github.com/klintcheng/kim/wire/pkt"
+	"github.com/redis/go-redis/v9"
 	"github.com/segmentio/ksuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -155,7 +156,7 @@ func InitRedis(addr string, pass string) (*redis.Client, error) {
 		WriteTimeout: time.Second * 5,
 	})
 
-	_, err := redisdb.Ping().Result()
+	_, err := redisdb.Ping(context.Background()).Result()
 	if err != nil {
 		log.Println(err)
 		return nil, err

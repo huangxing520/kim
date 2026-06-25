@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"hash/crc32"
 
-	"github.com/go-redis/redis/v7"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"github.com/klintcheng/kim/gen/rpc"
@@ -89,7 +89,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 
 	// 初始化 Redis
-	rdb, err := initRedis(cfg.RedisAddrs, cfg.RedisPassword)
+	rdb, err := initRedis(ctx, cfg.RedisAddrs, cfg.RedisPassword)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +208,7 @@ func HashCode(key string) uint32 {
 }
 
 // initRedis 初始化单机 Redis 客户端
-func initRedis(addr string, password string) (*redis.Client, error) {
+func initRedis(ctx context.Context, addr string, password string) (*redis.Client, error) {
 	if addr == "" {
 		return nil, nil
 	}
@@ -216,7 +216,7 @@ func initRedis(addr string, password string) (*redis.Client, error) {
 		Addr:     addr,
 		Password: password,
 	})
-	_, err := redisdb.Ping().Result()
+	_, err := redisdb.Ping(ctx).Result()
 	if err != nil {
 		return nil, err
 	}

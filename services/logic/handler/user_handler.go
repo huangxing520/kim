@@ -42,7 +42,7 @@ func (h *ServiceHandler) Login(ctx context.Context, req *rpc.LoginReq) (*rpc.Log
 	if err != nil {
 		return nil, err
 	}
-	if err := h.Cache.Set(req.Account, value, wire.AccessTokenExpiresIn).Err(); err != nil {
+	if err := h.Cache.Set(ctx, req.Account, value, wire.AccessTokenExpiresIn).Err(); err != nil {
 		return nil, fmt.Errorf("cache set failed: %w", err)
 	}
 	return &rpc.LoginResp{AccessToken: value}, nil
