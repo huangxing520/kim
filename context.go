@@ -21,7 +21,8 @@
 package kim
 
 import (
-	// 【修复#6】去掉原 "sync" 导入，ContextImpl 不再嵌入未使用的 sync.Mutex
+	"fmt"
+
 	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/pkt"
@@ -97,7 +98,8 @@ func (c *ContextImpl) Resp(status pkt.Status, body proto.Message) error {
 	packet.Status = status
 	packet.WriteBody(body)
 	packet.Flag = pkt.Flag_Response
-	logger.CommonLogger.Debugf("<-- Resp to %s command:%s  status: %v body: %s", c.Session().GetAccount(), &c.request.Header, status, body)
+	bodyStr := truncateForLog(body)
+	logger.CommonLogger.Debugf("<-- Resp to %s command:%s  status: %v body: %s", c.Session().GetAccount(), &c.request.Header, status, bodyStr)
 
 	err := c.Push(c.Session().GetGateId(), []string{c.Session().GetChannelId()}, packet)
 	if err != nil {
@@ -176,4 +178,14 @@ func (c *ContextImpl) Session() Session {
 		}
 	}
 	return c.session
+}
+
+const maxLogBodyLen = 200
+
+func truncateForLog(v interface{}) string {
+	s := fmt.Sprintf("%v", v)
+	if len(s) > maxLogBodyLen {
+		return s[:maxLogBodyLen] + "...(truncated)"
+	}
+	return s
 }

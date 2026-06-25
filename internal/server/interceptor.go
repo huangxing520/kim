@@ -43,8 +43,9 @@ func buildInterceptor(interceptor UnaryInterceptor, info *grpc.UnaryServerInfo, 
 func RecoveryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = status.Errorf(codes.Internal, "panic: %v\n%s", r, debug.Stack())
-			logger.CommonLogger.Errorf("gRPC panic: %v, method: %s\n%s", r, info.FullMethod, debug.Stack())
+			stack := debug.Stack()
+			logger.CommonLogger.Errorf("gRPC panic in %s: %v\n%s", info.FullMethod, r, stack)
+			err = status.Errorf(codes.Internal, "internal server error")
 		}
 	}()
 	return handler(ctx, req)
