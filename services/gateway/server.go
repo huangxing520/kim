@@ -1,131 +1,161 @@
 // 文件：server.go
-// 职责：Gateway 服务入口——Cobra 命令行启动 Gateway 服务，组装 Server、配置、Handler、路由选择器、服务发现等组件。
+// 职责：Gateway 服务入口——组装 WS/TCP 接入层、gRPC server（接收 Comet Push）、gRPC client（转发到 Comet）。
 //
 // 定义的类型：
-//   - ServerStartOptions 结构体：命令行启动参数（config / protocol / route）
+//   - Server 结构体：Gateway 服务实例（持有 config / wsSrv / grpcSrv / forwarder / naming）
 //
 // 方法：
-//   - NewServerStartCmd(ctx, version)       → 创建 gateway 子命令（Cobra）
-//   - RunServerStart(ctx, opts, version)     → 启动 Gateway：加载配置 → 初始化 logger → 创建 Handler → 创建 Server →
-//                                             设置 Acceptor/MessageListener/StateListener → Init container →
-//                                             注册 Consul Naming → 设置 Dialer/Selector → Start
+//   - New(ctx, cfg, routePath, protocol) → 创建 Gateway 服务：初始化 logger/naming/selector/forwarder/handler →
+//                                          创建 WS/TCP server → 创建 gRPC server → 注册 Consul
+//   - (Server).Start(ctx)                → 启动 gRPC server（非阻塞）+ WS/TCP server（阻塞）
+//   - (Server).Stop(ctx)                 → 反注册 Consul + 关闭 forwarder + GracefulStop + Shutdown
 
 package gateway
 
 import (
 	"context"
 	"fmt"
-	_ "net/http/pprof"
 	"time"
 
 	"github.com/klintcheng/kim"
-	"github.com/klintcheng/kim/container"
+	"github.com/klintcheng/kim/gen/rpc"
+	"github.com/klintcheng/kim/internal/naming"
+	"github.com/klintcheng/kim/internal/server"
 	"github.com/klintcheng/kim/logger"
-	"github.com/klintcheng/kim/naming"
-	"github.com/klintcheng/kim/naming/consul"
-	"github.com/klintcheng/kim/services/gateway/conf"
 	"github.com/klintcheng/kim/services/gateway/serv"
 	"github.com/klintcheng/kim/tcp"
 	"github.com/klintcheng/kim/websocket"
 	"github.com/klintcheng/kim/wire"
-	"github.com/spf13/cobra"
 )
 
-// const logName = "logs/gateway"
-
-// ServerStartOptions ServerStartOptions
-type ServerStartOptions struct {
-	config   string
-	protocol string
-	route    string
+// Server Gateway 服务实例
+type Server struct {
+	config    *Config
+	routePath string
+	protocol  string
+	wsSrv     kim.Server         // 客户端接入（WS/TCP）
+	grpcSrv   *server.GRPCServer // 接收 Comet Push
+	forwarder *CometForwarder    // gRPC client 调用 Comet
+	naming    naming.Naming
 }
 
-// NewServerStartCmd creates a new http server command
-func NewServerStartCmd(ctx context.Context, version string) *cobra.Command {
-	opts := &ServerStartOptions{}
-
-	cmd := &cobra.Command{
-		Use:   "gateway",
-		Short: "Start a gateway",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return RunServerStart(ctx, opts, version)
-		},
-	}
-	cmd.PersistentFlags().StringVarP(&opts.config, "config", "c", "services/gateway/conf.yaml", "Config file")
-	cmd.PersistentFlags().StringVarP(&opts.route, "route", "r", "services/gateway/route.json", "route file")
-	cmd.PersistentFlags().StringVarP(&opts.protocol, "protocol", "p", "ws", "protocol of ws or tcp")
-	return cmd
-}
-
-// RunServerStart run http server
-func RunServerStart(ctx context.Context, opts *ServerStartOptions, version string) error {
-	config, err := conf.Init(opts.config)
-	if err != nil {
-		return err
-	}
+// New 创建 Gateway 服务实例
+func New(ctx context.Context, cfg *Config, routePath string, protocol string) (*Server, error) {
+	// 1. 初始化 logger
 	log, err := logger.Init(logger.Settings{
-		Level:       config.LogLevel,
+		Level:       cfg.LogLevel,
 		Filename:    "./data/gateway.log",
 		ServiceName: "gateway",
-		Kafka:       config.Kafka,
+		Kafka:       cfg.Kafka,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	logger.GatewayLogger = log.Sugar()
-
 	defer log.Close()
 
-	handler := &serv.Handler{
-		ServiceID: config.ServiceID,
-		AppSecret: config.AppSecret,
+	// 2. Consul naming
+	ns, err := naming.NewNaming(cfg.ConsulURL)
+	if err != nil {
+		return nil, err
 	}
-	meta := make(map[string]string)
-	meta[consul.KeyHealthURL] = fmt.Sprintf("http://%s:%d/health", config.PublicAddress, config.MonitorPort)
-	meta["domain"] = config.Domain
 
-	var srv kim.Server
+	// 3. 路由选择器
+	selector, err := serv.NewRouteSelector(routePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. gRPC forwarder（调 Comet）
+	forwarder := NewCometForwarder(ns, selector, cfg.ServiceID)
+
+	// 5. WS/TCP 接入层
+	handler := &serv.Handler{
+		ServiceID: cfg.ServiceID,
+		AppSecret: cfg.AppSecret,
+		Forwarder: forwarder,
+	}
+	meta := map[string]string{
+		"domain": cfg.Domain,
+	}
 	service := &naming.DefaultService{
-		Id:       config.ServiceID,
-		Name:     config.ServiceName,
-		Address:  config.PublicAddress,
-		Port:     config.PublicPort,
-		Protocol: opts.protocol,
-		Tags:     config.Tags,
+		Id:       cfg.ServiceID,
+		Name:     cfg.ServiceName,
+		Address:  cfg.PublicAddress,
+		Port:     cfg.PublicPort,
+		Protocol: protocol,
+		Tags:     cfg.Tags,
 		Meta:     meta,
 	}
 	srvOpts := []kim.ServerOption{
-		kim.WithConnectionGPool(config.ConnectionGPool), kim.WithMessageGPool(config.MessageGPool),
+		kim.WithConnectionGPool(cfg.ConnectionGPool),
+		kim.WithMessageGPool(cfg.MessageGPool),
 	}
-	switch opts.protocol {
-	case "ws":
-		srv = websocket.NewServer(config.Listen, service, srvOpts...)
-	case "tcp":
-		srv = tcp.NewServer(config.Listen, service, srvOpts...)
-	default:
-		srv = websocket.NewServer(config.Listen, service, srvOpts...)
+	var wsSrv kim.Server
+	if protocol == "tcp" {
+		wsSrv = tcp.NewServer(cfg.Listen, service, srvOpts...)
+	} else {
+		wsSrv = websocket.NewServer(cfg.Listen, service, srvOpts...)
 	}
+	wsSrv.SetReadWait(time.Minute * 2)
+	wsSrv.SetAcceptor(handler)
+	wsSrv.SetMessageListener(handler)
+	wsSrv.SetStateListener(handler)
 
-	srv.SetReadWait(time.Minute * 2)
-	srv.SetAcceptor(handler)
-	srv.SetMessageListener(handler)
-	srv.SetStateListener(handler)
-
-	_ = container.Init(srv, wire.SNChat, wire.SNLogin)
-	container.EnableMonitor(fmt.Sprintf(":%d", config.MonitorPort))
-
-	ns, err := consul.NewNaming(config.ConsulURL)
+	// 6. gRPC server（接收 Comet Push）
+	grpcSrv, err := server.NewGRPCServer(cfg.GRPCListen, server.WithServiceName("gateway"))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	container.SetServiceNaming(ns)
-	// set a dialer
-	container.SetDialer(serv.NewDialer(config.ServiceID))
-	// use routeSelector
-	selector, err := serv.NewRouteSelector(opts.route)
-	if err != nil {
-		return err
+	pusher := NewPusher(wsSrv.Push)
+	rpc.RegisterGatewayServiceServer(grpcSrv, pusher)
+
+	// 7. Consul 注册（注册 gRPC 端口，Comet 通过 Consul 发现 Gateway 的 gRPC 地址来调用 Push）
+	grpcService := &naming.DefaultService{
+		Id:       cfg.ServiceID,
+		Name:     wire.SNWGateway, // "wgateway"
+		Address:  cfg.PublicAddress,
+		Port:     cfg.GRPCPort,
+		Protocol: "grpc",
+		Tags:     cfg.Tags,
+		Meta: map[string]string{
+			naming.KeyHealthURL: fmt.Sprintf("http://%s:%d/health", cfg.PublicAddress, cfg.MonitorPort),
+			"domain":            cfg.Domain,
+		},
 	}
-	container.SetSelector(selector)
-	return container.Start()
+	_ = ns.Register(grpcService)
+
+	return &Server{
+		config:    cfg,
+		routePath: routePath,
+		protocol:  protocol,
+		wsSrv:     wsSrv,
+		grpcSrv:   grpcSrv,
+		forwarder: forwarder,
+		naming:    ns,
+	}, nil
+}
+
+// Start 启动 Gateway 服务
+func (s *Server) Start(ctx context.Context) error {
+	// 启动 gRPC server（非阻塞）
+	go func() {
+		if err := s.grpcSrv.Start(); err != nil {
+			logger.GatewayLogger.Errorf("grpc server error: %v", err)
+		}
+	}()
+	logger.GatewayLogger.Infof("gateway grpc listening on %s", s.config.GRPCListen)
+	logger.GatewayLogger.Infof("gateway %s listening on %s", s.protocol, s.config.Listen)
+	// 启动 WS/TCP server（阻塞）
+	return s.wsSrv.Start()
+}
+
+// Stop 优雅关闭 Gateway 服务
+func (s *Server) Stop(ctx context.Context) error {
+	if s.naming != nil {
+		_ = s.naming.Deregister(s.config.ServiceID)
+	}
+	s.forwarder.Close()
+	s.grpcSrv.GracefulStop()
+	return s.wsSrv.Shutdown(ctx)
 }

@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/klintcheng/kim"
-	"github.com/klintcheng/kim/container"
 	"github.com/klintcheng/kim/logger"
 	"github.com/klintcheng/kim/wire"
 	"github.com/klintcheng/kim/wire/pkt"
@@ -37,10 +36,16 @@ const (
 	MetaKeyAccount = "account"
 )
 
+// Forwarder 消息转发器接口（由 gateway.CometForwarder 实现，避免循环引用）
+type Forwarder interface {
+	Forward(p *pkt.LogicPkt) error
+}
+
 // Handler Gateway 业务处理器
 type Handler struct {
 	ServiceID string
 	AppSecret string
+	Forwarder Forwarder
 }
 
 // Accept this connection
@@ -115,12 +120,12 @@ func (h *Handler) Accept(conn kim.Conn, timeout time.Duration) (string, kim.Meta
 	req.AddStringMeta(MetaKeyAccount, tk.Account)
 
 	// 7. 把login.转发给Login服务
-	err = container.Forward(wire.SNLogin, req)
+	err = h.Forwarder.Forward(req)
 	if err != nil {
 		logger.GatewayLogger.WithFields(logger.Fields{
 			"service": "gateway",
 			"pkg":     "serv",
-		}).Errorf("container.Forward :%v", err)
+		}).Errorf("Forward :%v", err)
 		return "", nil, err
 	}
 	return id, kim.Meta{
@@ -153,7 +158,7 @@ func (h *Handler) Receive(ag kim.Agent, payload []byte) {
 			logicPkt.AddStringMeta(MetaKeyAccount, ag.GetMeta()[MetaKeyAccount])
 		}
 
-		err = container.Forward(logicPkt.ServiceName(), logicPkt)
+		err = h.Forwarder.Forward(logicPkt)
 		if err != nil {
 			logger.GatewayLogger.WithFields(logger.Fields{
 				"module": "handler",
@@ -174,7 +179,7 @@ func (h *Handler) Disconnect(id string) error {
 	}).Infof("disconnect %s", id)
 
 	logout := pkt.New(wire.CommandLoginSignOut, pkt.WithChannel(id))
-	err := container.Forward(wire.SNLogin, logout)
+	err := h.Forwarder.Forward(logout)
 	if err != nil {
 		logger.GatewayLogger.WithFields(logger.Fields{
 			"module": "handler",

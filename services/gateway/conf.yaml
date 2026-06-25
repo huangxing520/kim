@@ -1,24 +1,21 @@
-ServiceID: gate01
-ServiceName: wgateway
-Listen: ":8000"
-MonitorPort: 8001
-PublicPort: 8000
-PublicAddress: localhost
-Tags:
-  - IDC:SH_ALI
-Domain: ws://kingimcloud.com
-ConsulURL: 192.168.31.77:8500
-AppSecret: ""
-MessageGPool: 5000
-ConnectionGPool: 15000
-Kafka:
-  Enable: true
-  Brokers:
-    - localhost:29092
-    - localhost:29192
-    - localhost:29292
-  Topic: kim_logs
-  BufferSize: 1024
-  Timeout: "10s"
-  ReplicationFactor: 3
-  Partitions: 3
+service_id: "gate01"
+service_name: "wgateway"
+listen: ":8000"
+grpc_listen: ":9001"
+grpc_port: 9001
+public_address: "127.0.0.1"
+public_port: 8000
+tags:
+  - "IDC:SH_ALI"
+domain: "ws://kingimcloud.com"
+consul_url: "http://127.0.0.1:8500"
+monitor_port: 8001
+app_secret: ""
+log_level: "info"
+message_g_pool: 5000
+connection_g_pool: 15000
+protocol: "ws"
+kafka:
+  enable: false
+  brokers: []
+  topic: "kim_logs"
