@@ -216,7 +216,7 @@ func (s *DefaultServer) Shutdown(ctx context.Context) error {
 		defer func() {
 			log.Infoln("shutdown")
 		}()
-		if atomic.CompareAndSwapInt32(&s.quit, 0, 1) {
+		if !atomic.CompareAndSwapInt32(&s.quit, 0, 1) {
 			return
 		}
 
