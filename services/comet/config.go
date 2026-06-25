@@ -19,6 +19,7 @@ type Config struct {
 	MessageGPool    int                 `mapstructure:"message_g_pool"`
 	ConnectionGPool int                 `mapstructure:"connection_g_pool"`
 	Kafka           model.KafkaSettings `mapstructure:"kafka"`
+	Resilience      config.ResilienceConfig `mapstructure:"resilience"`
 }
 
 // LoadConfig 从指定路径加载配置
@@ -32,6 +33,11 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"
+	}
+	// 合并弹性配置默认值
+	defaults := config.DefaultResilienceConfig()
+	if !cfg.Resilience.Breaker.Enable {
+		cfg.Resilience = defaults
 	}
 	return &cfg, nil
 }

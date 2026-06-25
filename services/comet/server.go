@@ -67,9 +67,14 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, err
 	}
 
-	// 4. gRPC client pool
-	logicPool := client.NewPool(ns, wire.SNService) // "royal"
-	gwPool := client.NewPool(ns, wire.SNWGateway)   // "wgateway"
+	// 3.5 初始化 Sentinel（断路器 + 限流器）
+	if err := client.InitSentinel(); err != nil {
+		logger.CometLogger.Warnf("init sentinel (resilience disabled): %v", err)
+	}
+
+	// 4. gRPC client pool（挂载弹性拦截器）
+	logicPool := client.NewPoolWithConfig(ns, wire.SNService, cfg.Resilience) // "royal"
+	gwPool := client.NewPoolWithConfig(ns, wire.SNWGateway, cfg.Resilience)   // "wgateway"
 
 	// 5. service clients
 	logicCli := service.NewLogicClient(logicPool)
@@ -98,8 +103,11 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	r.Handle(wire.CommandOfflineIndex, offlineHandler.DoSyncIndex)
 	r.Handle(wire.CommandOfflineContent, offlineHandler.DoSyncContent)
 
-	// 7. gRPC server
-	grpcSrv, err := server.NewGRPCServer(cfg.Listen, server.WithServiceName("comet"))
+	// 7. gRPC server（挂载服务端限流）
+	grpcSrv, err := server.NewGRPCServer(cfg.Listen,
+		server.WithServiceName("comet"),
+		server.WithLimiter(cfg.Resilience.Limiter),
+	)
 	if err != nil {
 		return nil, err
 	}

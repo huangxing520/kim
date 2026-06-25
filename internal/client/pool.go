@@ -120,9 +120,12 @@ func (p *Pool) refresh() {
 		currentIDs[id] = true
 		if _, exists := p.conns[id]; !exists {
 			addr := fmt.Sprintf("%s:%d", svc.PublicAddress(), svc.PublicPort())
+			// 为每个连接挂载实例级拦截器链
+			interceptors := InterceptorChain(p.serviceName, id, p.cfg)
 			conn, err := grpc.Dial(addr,
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
 				grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(10*1024*1024)),
+				grpc.WithChainUnaryInterceptor(interceptors...),
 			)
 			if err != nil {
 				continue
