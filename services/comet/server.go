@@ -198,15 +198,15 @@ func (s *Server) Stop(ctx context.Context) error {
 // initRedis 初始化单机 Redis 客户端
 func initRedis(ctx context.Context, addr string, password string) (*redis.Client, error) {
 	if addr == "" {
-		return nil, nil
+		return nil, fmt.Errorf("redis address is required")
 	}
 	redisdb := redis.NewClient(&redis.Options{
 		Addr:     addr,
 		Password: password,
 	})
-	_, err := redisdb.Ping(ctx).Result()
-	if err != nil {
-		return nil, err
+	if err := redisdb.Ping(ctx).Err(); err != nil {
+		_ = redisdb.Close()
+		return nil, fmt.Errorf("redis ping failed: %w", err)
 	}
 	return redisdb, nil
 }

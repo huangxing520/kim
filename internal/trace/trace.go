@@ -90,7 +90,6 @@ func newExporter(cfg config.TraceConfig) (sdktrace.SpanExporter, error) {
 	}
 }
 
-// newOTLPExporter 创建 OTLP gRPC exporter
 func newOTLPExporter(cfg config.TraceConfig) (sdktrace.SpanExporter, error) {
 	endpoint := cfg.Endpoint
 	if endpoint == "" {
@@ -99,9 +98,7 @@ func newOTLPExporter(cfg config.TraceConfig) (sdktrace.SpanExporter, error) {
 
 	opts := []otlptracegrpc.Option{
 		otlptracegrpc.WithEndpoint(endpoint),
-	}
-	if cfg.Insecure {
-		opts = append(opts, otlptracegrpc.WithDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())))
+		otlptracegrpc.WithDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

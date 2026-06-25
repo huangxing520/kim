@@ -145,23 +145,24 @@ func (ch *ChannelImpl) writeloop() error {
 // ID id simpling server
 func (ch *ChannelImpl) ID() string { return ch.id }
 
-// Push 异步写数据
 func (ch *ChannelImpl) Push(payload []byte) error {
-	if atomic.LoadInt32(&ch.state) != 1 {
-		return fmt.Errorf("channel %s has closed", ch.id)
+	state := atomic.LoadInt32(&ch.state)
+	if state != 1 {
+		return fmt.Errorf("channel %s not ready (state=%d)", ch.id, state)
 	}
 	select {
 	case ch.writechan <- payload:
 		return nil
 	case <-ch.closeChan:
-		return fmt.Errorf("channel %s has closed", ch.id)
+		return fmt.Errorf("channel %s is closed", ch.id)
 	}
 }
 
-// Close 关闭连接
 func (ch *ChannelImpl) Close() error {
 	if !atomic.CompareAndSwapInt32(&ch.state, 1, 2) {
-		return fmt.Errorf("channel has started")
+		if !atomic.CompareAndSwapInt32(&ch.state, 0, 2) {
+			return fmt.Errorf("channel already closed")
+		}
 	}
 	close(ch.closeChan)
 	return nil

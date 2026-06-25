@@ -121,8 +121,7 @@ type Logger struct {
 	debugWS     zapcore.WriteSyncer
 }
 
-// NewLogger 创建一个新的 Logger 实例（非单例，每次调用都创建独立实例）
-func NewLogger(mod ...ModOptions) *Logger {
+func NewLogger(mod ...ModOptions) (*Logger, error) {
 	l := &Logger{}
 	l.Lock()
 	defer l.Unlock()
@@ -159,23 +158,25 @@ func NewLogger(mod ...ModOptions) *Logger {
 		l.zapConfig.ErrorOutputPaths = []string{"stderr"}
 	}
 	l.zapConfig.Level.SetLevel(l.Opts.Level)
-	l.init()
+	if err := l.init(); err != nil {
+		return nil, err
+	}
 	l.inited = true
 	l.Info("[NewLogger] success")
-	return l
+	return l, nil
 }
 
-func (l *Logger) init() {
+func (l *Logger) init() error {
 	l.setSyncers()
 	var err error
 	l.Logger, err = l.zapConfig.Build(l.cores())
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("build zap logger: %w", err)
 	}
-	// 自动注入 service 字段到每条日志
 	if l.Opts.ServiceName != "" {
 		l.Logger = l.Logger.With(zap.String("service", l.Opts.ServiceName))
 	}
+	return nil
 }
 
 func (l *Logger) setSyncers() {
@@ -434,7 +435,7 @@ func Init(s Settings) (*Logger, error) {
 	if s.Development {
 		opts = append(opts, SetDevelopment(true))
 	}
-	return NewLogger(opts...), nil
+	return NewLogger(opts...)
 }
 
 // Close 关闭日志（刷新 Kafka 生产者、同步 zap）

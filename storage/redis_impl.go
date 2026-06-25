@@ -13,6 +13,7 @@ import (
 
 const (
 	LocationExpired = time.Hour * 48
+	redisOpTimeout  = 3 * time.Second
 )
 
 type RedisStorage struct {
@@ -25,6 +26,10 @@ func NewRedisStorage(cli *redis.Client) kim.SessionStorage {
 	}
 }
 
+func redisContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), redisOpTimeout)
+}
+
 func (r *RedisStorage) Add(session *pkt.Session) error {
 	loc := kim.Location{
 		ChannelId: session.ChannelId,
@@ -32,11 +37,16 @@ func (r *RedisStorage) Add(session *pkt.Session) error {
 	}
 	locKey := KeyLocation(session.Account, "")
 	snKey := KeySession(session.ChannelId)
-	buf, _ := proto.Marshal(session)
+	buf, err := proto.Marshal(session)
+	if err != nil {
+		return fmt.Errorf("marshal session: %w", err)
+	}
+	ctx, cancel := redisContext()
+	defer cancel()
 	pipe := r.cli.Pipeline()
-	pipe.Set(context.Background(), locKey, loc.Bytes(), LocationExpired)
-	pipe.Set(context.Background(), snKey, buf, LocationExpired)
-	_, err := pipe.Exec(context.Background())
+	pipe.Set(ctx, locKey, loc.Bytes(), LocationExpired)
+	pipe.Set(ctx, snKey, buf, LocationExpired)
+	_, err = pipe.Exec(ctx)
 	if err != nil {
 		return err
 	}
@@ -46,10 +56,12 @@ func (r *RedisStorage) Add(session *pkt.Session) error {
 func (r *RedisStorage) Delete(account string, channelId string) error {
 	locKey := KeyLocation(account, "")
 	snKey := KeySession(channelId)
+	ctx, cancel := redisContext()
+	defer cancel()
 	pipe := r.cli.Pipeline()
-	pipe.Del(context.Background(), locKey)
-	pipe.Del(context.Background(), snKey)
-	_, err := pipe.Exec(context.Background())
+	pipe.Del(ctx, locKey)
+	pipe.Del(ctx, snKey)
+	_, err := pipe.Exec(ctx)
 	if err != nil {
 		return err
 	}
@@ -58,7 +70,9 @@ func (r *RedisStorage) Delete(account string, channelId string) error {
 
 func (r *RedisStorage) Get(channelId string) (*pkt.Session, error) {
 	snKey := KeySession(channelId)
-	bts, err := r.cli.Get(context.Background(), snKey).Bytes()
+	ctx, cancel := redisContext()
+	defer cancel()
+	bts, err := r.cli.Get(ctx, snKey).Bytes()
 	if err != nil {
 		if err == redis.Nil {
 			return nil, kim.ErrSessionNil
@@ -66,13 +80,17 @@ func (r *RedisStorage) Get(channelId string) (*pkt.Session, error) {
 		return nil, err
 	}
 	var session pkt.Session
-	_ = proto.Unmarshal(bts, &session)
+	if err := proto.Unmarshal(bts, &session); err != nil {
+		return nil, fmt.Errorf("unmarshal session: %w", err)
+	}
 	return &session, nil
 }
 
 func (r *RedisStorage) GetLocations(accounts ...string) ([]*kim.Location, error) {
 	keys := KeyLocations(accounts...)
-	list, err := r.cli.MGet(context.Background(), keys...).Result()
+	ctx, cancel := redisContext()
+	defer cancel()
+	list, err := r.cli.MGet(ctx, keys...).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +101,9 @@ func (r *RedisStorage) GetLocations(accounts ...string) ([]*kim.Location, error)
 			continue
 		}
 		var loc kim.Location
-		_ = loc.Unmarshal([]byte(l.(string)))
+		if err := loc.Unmarshal([]byte(l.(string))); err != nil {
+			return nil, fmt.Errorf("unmarshal location for %s: %w", accounts[i], err)
+		}
 		result[i] = &loc
 	}
 	allNil := true
@@ -101,7 +121,9 @@ func (r *RedisStorage) GetLocations(accounts ...string) ([]*kim.Location, error)
 
 func (r *RedisStorage) GetLocation(account string, device string) (*kim.Location, error) {
 	key := KeyLocation(account, device)
-	bts, err := r.cli.Get(context.Background(), key).Bytes()
+	ctx, cancel := redisContext()
+	defer cancel()
+	bts, err := r.cli.Get(ctx, key).Bytes()
 	if err != nil {
 		if err == redis.Nil {
 			return nil, kim.ErrSessionNil
@@ -109,12 +131,16 @@ func (r *RedisStorage) GetLocation(account string, device string) (*kim.Location
 		return nil, err
 	}
 	var loc kim.Location
-	_ = loc.Unmarshal(bts)
+	if err := loc.Unmarshal(bts); err != nil {
+		return nil, fmt.Errorf("unmarshal location: %w", err)
+	}
 	return &loc, nil
 }
 
 func (r *RedisStorage) RedisGet(key string) (string, error) {
-	result, err := r.cli.Get(context.Background(), key).Result()
+	ctx, cancel := redisContext()
+	defer cancel()
+	result, err := r.cli.Get(ctx, key).Result()
 	return result, err
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	kim "github.com/klintcheng/kim/internal/kim"
 	"github.com/klintcheng/kim/gen/rpc"
 	"github.com/klintcheng/kim/internal/client"
 	"github.com/klintcheng/kim/internal/config"
@@ -15,7 +14,6 @@ import (
 )
 
 type CometForwarder struct {
-	ns        naming.Naming
 	pool      *client.Pool
 	selector  *handler.RouteSelector
 	gatewayID string
@@ -24,7 +22,6 @@ type CometForwarder struct {
 
 func NewCometForwarder(ns naming.Naming, selector *handler.RouteSelector, gatewayID string, cfg config.ResilienceConfig, grpcCfg config.GRPCConfig) *CometForwarder {
 	return &CometForwarder{
-		ns:        ns,
 		pool:      client.NewPoolWithConfig(ns, wire.SNChat, cfg, grpcCfg),
 		selector:  selector,
 		gatewayID: gatewayID,
@@ -39,22 +36,15 @@ func (f *CometForwarder) Forward(ctx context.Context, p *pkt.LogicPkt) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	regs, err := f.ns.Find(wire.SNChat)
-	if err != nil {
-		return fmt.Errorf("find comet service: %w", err)
-	}
-	if len(regs) == 0 {
-		return fmt.Errorf("no comet service found")
-	}
-	services := make([]kim.Service, len(regs))
-	for i, r := range regs {
-		services[i] = r
+	services := f.pool.Services()
+	if len(services) == 0 {
+		return fmt.Errorf("no comet service available")
 	}
 	targetID := f.selector.Lookup(&p.Header, services)
 	p.AddStringMeta(wire.MetaDestServer, f.gatewayID)
 	conn, err := f.pool.Get(targetID)
 	if err != nil {
-		return err
+		return fmt.Errorf("get comet conn for %s: %w", targetID, err)
 	}
 	cli := rpc.NewCometServiceClient(conn)
 	_, err = cli.Forward(ctx, &rpc.ForwardReq{

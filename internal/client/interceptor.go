@@ -11,6 +11,8 @@ import (
 	"github.com/klintcheng/kim/internal/metrics"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // InterceptorChain 构造客户端拦截器链：trace → timeout → resilience(breaker+limiter)
@@ -62,11 +64,10 @@ func resilienceInterceptor(serviceName, instanceID string, breakerCfg config.Bre
 		// 一次 Entry 同时经过断路器 slot 和限流器 slot
 		entry, blockErr := sentinel.Entry(resource)
 		if blockErr != nil {
-			// 区分是断路器还是限流器拒绝
 			if limiterCfg.Enable {
 				metrics.GRPCRateLimitRejected.WithLabelValues("client", serviceName, mtd).Inc()
 			}
-			return fmt.Errorf("resilience blocked: %s", blockErr.BlockMsg())
+			return status.Errorf(codes.Unavailable, "resilience blocked: %s", blockErr.BlockMsg())
 		}
 		defer entry.Exit()
 

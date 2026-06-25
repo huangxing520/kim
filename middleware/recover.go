@@ -16,7 +16,6 @@ import (
 	"github.com/klintcheng/kim/wire/pkt"
 )
 
-// Recover 返回 panic 恢复中间件
 func Recover() kim.HandlerFunc {
 	return func(ctx kim.Context) {
 		defer func() {
@@ -29,16 +28,15 @@ func Recover() kim.HandlerFunc {
 					}
 					callers = append(callers, fmt.Sprintf("%s:%d", file, line))
 				}
-			
-			logger.CometLogger.Errorw(fmt.Sprintf("%v", err),"ChannelId",ctx.Header().ChannelId,
-					"Command",ctx.Header().Command,
-					"Seq",ctx.Header().Sequence,"Caller",strings.Join(callers, "\n"))
-				
+				logger.CommonLogger.WithFields(logger.Fields{
+					"ChannelId": ctx.Header().ChannelId,
+					"Command":   ctx.Header().Command,
+					"Seq":       ctx.Header().Sequence,
+					"Caller":    strings.Join(callers, "\n"),
+				}).Errorf("panic recovered: %v", err)
 				_ = ctx.Resp(pkt.Status_SystemException, &pkt.ErrorResp{Message: "SystemException"})
 			}
 		}()
-
 		ctx.Next()
 	}
-
 }

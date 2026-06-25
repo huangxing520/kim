@@ -22,11 +22,13 @@ type Pool struct {
 	serviceName string
 	mu          sync.RWMutex
 	conns       map[string]*grpc.ClientConn
+	services    map[string]kim.ServiceRegistration
 	rr          *roundRobin
 	cfg         config.ResilienceConfig
 	grpcCfg     config.GRPCConfig
 	done        chan struct{}
 	closeOnce   sync.Once
+	wg          sync.WaitGroup
 }
 
 func NewPool(ns naming.Naming, serviceName string) *Pool {
@@ -38,15 +40,27 @@ func NewPoolWithConfig(ns naming.Naming, serviceName string, cfg config.Resilien
 		naming:      ns,
 		serviceName: serviceName,
 		conns:       make(map[string]*grpc.ClientConn),
+		services:    make(map[string]kim.ServiceRegistration),
 		rr:          newRoundRobin(),
 		cfg:         cfg,
 		grpcCfg:     grpcCfg,
 		done:        make(chan struct{}),
 	}
 	if ns != nil {
+		p.wg.Add(1)
 		go p.watch()
 	}
 	return p
+}
+
+func (p *Pool) Services() []kim.Service {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	result := make([]kim.Service, 0, len(p.services))
+	for _, svc := range p.services {
+		result = append(result, svc)
+	}
+	return result
 }
 
 func (p *Pool) Get(serviceID string) (*grpc.ClientConn, error) {
@@ -103,6 +117,7 @@ func (p *Pool) Interceptors(instanceID string) []grpc.UnaryClientInterceptor {
 }
 
 func (p *Pool) watch() {
+	defer p.wg.Done()
 	p.refresh()
 
 	if err := p.naming.Subscribe(p.serviceName, func(services []kim.ServiceRegistration) {
@@ -128,9 +143,11 @@ func (p *Pool) refresh() {
 	defer p.mu.Unlock()
 
 	currentIDs := make(map[string]bool)
+	newServices := make(map[string]kim.ServiceRegistration, len(services))
 	for _, svc := range services {
 		id := svc.ServiceID()
 		currentIDs[id] = true
+		newServices[id] = svc
 		if _, exists := p.conns[id]; !exists {
 			addr := fmt.Sprintf("%s:%d", svc.PublicAddress(), svc.PublicPort())
 			interceptors := InterceptorChain(p.serviceName, id, p.cfg)
@@ -169,6 +186,7 @@ func (p *Pool) refresh() {
 			delete(p.conns, id)
 		}
 	}
+	p.services = newServices
 }
 
 func (p *Pool) loadClientTLSCredentials() (credentials.TransportCredentials, error) {
@@ -200,6 +218,7 @@ func (p *Pool) Close() {
 	p.closeOnce.Do(func() {
 		close(p.done)
 	})
+	p.wg.Wait()
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -209,6 +228,7 @@ func (p *Pool) Close() {
 		}
 	}
 	p.conns = make(map[string]*grpc.ClientConn)
+	p.services = make(map[string]kim.ServiceRegistration)
 }
 
 type roundRobin struct {
