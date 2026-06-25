@@ -3,23 +3,39 @@ package client
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/klintcheng/kim/internal/config"
+	"google.golang.org/grpc"
 )
+
+// newTestPool 构造测试用 Pool（同包可访问私有字段，conn 填 nil，测试 InvokeFunc 忽略 conn）
+func newTestPool(ids ...string) *Pool {
+	p := &Pool{
+		serviceName: "test",
+		conns:       make(map[string]*grpc.ClientConn),
+		rr:          newRoundRobin(),
+		cfg:         config.DefaultResilienceConfig(),
+	}
+	for _, id := range ids {
+		p.conns[id] = nil
+	}
+	return p
+}
 
 // fakeInvoker 模拟 gRPC 调用，可控制返回值和延迟
 type fakeInvoker struct {
-	calls     int
+	calls     int32
 	err       error
 	latency   time.Duration
-	failFirst int // 前 N 次失败
+	failFirst int32 // 前 N 次失败
 }
 
-func (f *fakeInvoker) invoke(ctx context.Context, method string) (interface{}, error) {
-	f.calls++
-	if f.calls <= f.failFirst {
+func (f *fakeInvoker) invoke(ctx context.Context, conn *grpc.ClientConn, method string) (interface{}, error) {
+	n := atomic.AddInt32(&f.calls, 1)
+	if int32(n) <= f.failFirst {
 		if f.latency > 0 {
 			time.Sleep(f.latency)
 		}
@@ -31,16 +47,21 @@ func (f *fakeInvoker) invoke(ctx context.Context, method string) (interface{}, e
 	return "ok", nil
 }
 
+func (f *fakeInvoker) callCount() int {
+	return int(atomic.LoadInt32(&f.calls))
+}
+
 func TestResilientClient_Success(t *testing.T) {
 	cfg := config.DefaultResilienceConfig()
-	cfg.Breaker.Enable = false // 禁用断路器避免干扰重试测试
+	cfg.Breaker.Enable = false
 	cfg.Limiter.Enable = false
 
-	rc := NewResilientClient("test", cfg)
+	pool := newTestPool("inst-1")
+	rc := NewResilientClient(pool, "test", cfg)
 	fi := &fakeInvoker{err: nil}
 
-	result, err := rc.Call(context.Background(), "TestMethod", func(ctx context.Context) (interface{}, error) {
-		return fi.invoke(ctx, "TestMethod")
+	result, err := rc.Call(context.Background(), "TestMethod", func(ctx context.Context, conn *grpc.ClientConn) (interface{}, error) {
+		return fi.invoke(ctx, conn, "TestMethod")
 	})
 
 	if err != nil {
@@ -49,8 +70,8 @@ func TestResilientClient_Success(t *testing.T) {
 	if result != "ok" {
 		t.Errorf("expected 'ok', got %v", result)
 	}
-	if fi.calls != 1 {
-		t.Errorf("expected 1 call, got %d", fi.calls)
+	if fi.callCount() != 1 {
+		t.Errorf("expected 1 call, got %d", fi.callCount())
 	}
 }
 
@@ -60,11 +81,12 @@ func TestResilientClient_RetryOnFailure(t *testing.T) {
 	cfg.Limiter.Enable = false
 	cfg.Retry.MaxAttempts = 3
 
-	rc := NewResilientClient("test", cfg)
+	pool := newTestPool("inst-1", "inst-2", "inst-3")
+	rc := NewResilientClient(pool, "test", cfg)
 	fi := &fakeInvoker{err: errors.New("transient"), failFirst: 2}
 
-	result, err := rc.Call(context.Background(), "TestMethod", func(ctx context.Context) (interface{}, error) {
-		return fi.invoke(ctx, "TestMethod")
+	result, err := rc.Call(context.Background(), "TestMethod", func(ctx context.Context, conn *grpc.ClientConn) (interface{}, error) {
+		return fi.invoke(ctx, conn, "TestMethod")
 	})
 
 	if err != nil {
@@ -73,8 +95,8 @@ func TestResilientClient_RetryOnFailure(t *testing.T) {
 	if result != "ok" {
 		t.Errorf("expected 'ok', got %v", result)
 	}
-	if fi.calls != 3 {
-		t.Errorf("expected 3 calls (2 fail + 1 success), got %d", fi.calls)
+	if fi.callCount() != 3 {
+		t.Errorf("expected 3 calls (2 fail + 1 success), got %d", fi.callCount())
 	}
 }
 
@@ -84,18 +106,19 @@ func TestResilientClient_ExhaustedRetries(t *testing.T) {
 	cfg.Limiter.Enable = false
 	cfg.Retry.MaxAttempts = 2
 
-	rc := NewResilientClient("test", cfg)
+	pool := newTestPool("inst-1", "inst-2")
+	rc := NewResilientClient(pool, "test", cfg)
 	fi := &fakeInvoker{err: errors.New("permanent"), failFirst: 999}
 
-	_, err := rc.Call(context.Background(), "TestMethod", func(ctx context.Context) (interface{}, error) {
-		return fi.invoke(ctx, "TestMethod")
+	_, err := rc.Call(context.Background(), "TestMethod", func(ctx context.Context, conn *grpc.ClientConn) (interface{}, error) {
+		return fi.invoke(ctx, conn, "TestMethod")
 	})
 
 	if err == nil {
 		t.Fatal("expected error after exhausted retries")
 	}
-	if fi.calls != 2 {
-		t.Errorf("expected 2 calls (max attempts), got %d", fi.calls)
+	if fi.callCount() != 2 {
+		t.Errorf("expected 2 calls (max attempts), got %d", fi.callCount())
 	}
 }
 
@@ -105,18 +128,19 @@ func TestResilientClient_NoRetryOnContextCancel(t *testing.T) {
 	cfg.Limiter.Enable = false
 	cfg.Retry.MaxAttempts = 3
 
-	rc := NewResilientClient("test", cfg)
+	pool := newTestPool("inst-1")
+	rc := NewResilientClient(pool, "test", cfg)
 	fi := &fakeInvoker{err: context.Canceled, failFirst: 999}
 
-	_, err := rc.Call(context.Background(), "TestMethod", func(ctx context.Context) (interface{}, error) {
-		return fi.invoke(ctx, "TestMethod")
+	_, err := rc.Call(context.Background(), "TestMethod", func(ctx context.Context, conn *grpc.ClientConn) (interface{}, error) {
+		return fi.invoke(ctx, conn, "TestMethod")
 	})
 
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if fi.calls != 1 {
-		t.Errorf("expected 1 call (no retry on context.Canceled), got %d", fi.calls)
+	if fi.callCount() != 1 {
+		t.Errorf("expected 1 call (no retry on context.Canceled), got %d", fi.callCount())
 	}
 }
 
@@ -129,12 +153,13 @@ func TestResilientClient_BackoffIncreases(t *testing.T) {
 	cfg.Retry.MaxBackoff = "100ms"
 	cfg.Retry.Multiplier = 2.0
 
-	rc := NewResilientClient("test", cfg)
+	pool := newTestPool("inst-1", "inst-2", "inst-3")
+	rc := NewResilientClient(pool, "test", cfg)
 
 	start := time.Now()
 	fi := &fakeInvoker{err: errors.New("fail"), failFirst: 2}
-	_, _ = rc.Call(context.Background(), "TestMethod", func(ctx context.Context) (interface{}, error) {
-		return fi.invoke(ctx, "TestMethod")
+	_, _ = rc.Call(context.Background(), "TestMethod", func(ctx context.Context, conn *grpc.ClientConn) (interface{}, error) {
+		return fi.invoke(ctx, conn, "TestMethod")
 	})
 	elapsed := time.Since(start)
 
@@ -150,18 +175,19 @@ func TestResilientClient_RetryDisabled(t *testing.T) {
 	cfg.Limiter.Enable = false
 	cfg.Retry.Enable = false
 
-	rc := NewResilientClient("test", cfg)
+	pool := newTestPool("inst-1")
+	rc := NewResilientClient(pool, "test", cfg)
 	fi := &fakeInvoker{err: errors.New("fail"), failFirst: 999}
 
-	_, err := rc.Call(context.Background(), "TestMethod", func(ctx context.Context) (interface{}, error) {
-		return fi.invoke(ctx, "TestMethod")
+	_, err := rc.Call(context.Background(), "TestMethod", func(ctx context.Context, conn *grpc.ClientConn) (interface{}, error) {
+		return fi.invoke(ctx, conn, "TestMethod")
 	})
 
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if fi.calls != 1 {
-		t.Errorf("expected 1 call (retry disabled), got %d", fi.calls)
+	if fi.callCount() != 1 {
+		t.Errorf("expected 1 call (retry disabled), got %d", fi.callCount())
 	}
 }
 
@@ -172,22 +198,22 @@ func TestResilientClient_RespectsDeadline(t *testing.T) {
 	cfg.Retry.MaxAttempts = 10
 	cfg.Retry.InitialBackoff = "100ms"
 
-	rc := NewResilientClient("test", cfg)
+	pool := newTestPool("inst-1", "inst-2")
+	rc := NewResilientClient(pool, "test", cfg)
 	fi := &fakeInvoker{err: errors.New("fail"), failFirst: 999}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
 	start := time.Now()
-	_, err := rc.Call(ctx, "TestMethod", func(ctx context.Context) (interface{}, error) {
-		return fi.invoke(ctx, "TestMethod")
+	_, err := rc.Call(ctx, "TestMethod", func(ctx context.Context, conn *grpc.ClientConn) (interface{}, error) {
+		return fi.invoke(ctx, conn, "TestMethod")
 	})
 	elapsed := time.Since(start)
 
 	if err == nil {
 		t.Fatal("expected error due to deadline")
 	}
-	// 应该在 deadline 后很快返回，而不是重试完所有次数
 	if elapsed > 200*time.Millisecond {
 		t.Errorf("expected to respect deadline (~50ms), got %v", elapsed)
 	}
@@ -199,21 +225,22 @@ func TestResilientClient_Fallback(t *testing.T) {
 	cfg.Limiter.Enable = false
 	cfg.Retry.Enable = false // 禁用重试，测试 fallback
 
-	rc := NewResilientClient("test", cfg)
+	pool := newTestPool("inst-1")
+	rc := NewResilientClient(pool, "test", cfg)
 
 	primaryErr := errors.New("primary failed")
 	fallbackErr := errors.New("fallback failed")
 
 	callCount := 0
 	result, err := rc.CallWithFallback(context.Background(), "TestMethod",
-		func(ctx context.Context) (interface{}, error) {
+		func(ctx context.Context, conn *grpc.ClientConn) (interface{}, error) {
 			callCount++
 			if callCount == 1 {
 				return nil, primaryErr
 			}
 			return "fallback-ok", nil
 		},
-		func(ctx context.Context) (interface{}, error) {
+		func(ctx context.Context, conn *grpc.ClientConn) (interface{}, error) {
 			callCount++
 			return "fallback-ok", nil
 		},
@@ -232,11 +259,11 @@ func TestResilientClient_Fallback(t *testing.T) {
 	// 测试 fallback 也失败
 	callCount = 0
 	_, err = rc.CallWithFallback(context.Background(), "TestMethod",
-		func(ctx context.Context) (interface{}, error) {
+		func(ctx context.Context, conn *grpc.ClientConn) (interface{}, error) {
 			callCount++
 			return nil, primaryErr
 		},
-		func(ctx context.Context) (interface{}, error) {
+		func(ctx context.Context, conn *grpc.ClientConn) (interface{}, error) {
 			callCount++
 			return nil, fallbackErr
 		},
@@ -246,5 +273,32 @@ func TestResilientClient_Fallback(t *testing.T) {
 	}
 	if callCount != 2 {
 		t.Errorf("expected 2 calls, got %d", callCount)
+	}
+}
+
+// TestResilientClient_FallbackSwitchesInstance 验证重试时通过 GetAnyExcluding 切换实例
+func TestResilientClient_FallbackSwitchesInstance(t *testing.T) {
+	cfg := config.DefaultResilienceConfig()
+	cfg.Breaker.Enable = false
+	cfg.Limiter.Enable = false
+	cfg.Retry.MaxAttempts = 2
+	cfg.Retry.InitialBackoff = "1ms"
+
+	pool := newTestPool("inst-A", "inst-B")
+	rc := NewResilientClient(pool, "test", cfg)
+
+	// 重试时应该通过 GetAnyExcluding 换实例。
+	// 用一个 InvokeFunc 在第一次失败、第二次成功，验证调用了 2 次且最终成功。
+	fi := &fakeInvoker{err: errors.New("fail"), failFirst: 1}
+
+	_, err := rc.Call(context.Background(), "TestMethod", func(ctx context.Context, conn *grpc.ClientConn) (interface{}, error) {
+		return fi.invoke(ctx, conn, "TestMethod")
+	})
+
+	if err != nil {
+		t.Fatalf("expected success after retry on different instance, got %v", err)
+	}
+	if fi.callCount() != 2 {
+		t.Errorf("expected 2 calls, got %d", fi.callCount())
 	}
 }

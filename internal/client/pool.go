@@ -54,17 +54,23 @@ func (p *Pool) Get(serviceID string) (*grpc.ClientConn, error) {
 
 // GetAny round-robin 选一个连接
 func (p *Pool) GetAny() (*grpc.ClientConn, error) {
+	_, conn, err := p.GetAnyWithID()
+	return conn, err
+}
+
+// GetAnyWithID round-robin 选一个连接，返回 (instanceID, conn)
+func (p *Pool) GetAnyWithID() (string, *grpc.ClientConn, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if len(p.conns) == 0 {
-		return nil, fmt.Errorf("no available %s instance", p.serviceName)
+		return "", nil, fmt.Errorf("no available %s instance", p.serviceName)
 	}
 	ids := make([]string, 0, len(p.conns))
 	for id := range p.conns {
 		ids = append(ids, id)
 	}
 	id := p.rr.Next(ids)
-	return p.conns[id], nil
+	return id, p.conns[id], nil
 }
 
 // GetAnyExcluding round-robin 选一个连接，排除指定的 serviceID（用于 fallback）

@@ -76,8 +76,8 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	logicPool := client.NewPoolWithConfig(ns, wire.SNService, cfg.Resilience) // "royal"
 	gwPool := client.NewPoolWithConfig(ns, wire.SNWGateway, cfg.Resilience)   // "wgateway"
 
-	// 5. service clients
-	logicCli := service.NewLogicClient(logicPool)
+	// 5. service clients（LogicClient 接入 ResilientClient：重试 + fallback 换实例）
+	logicCli := service.NewLogicClient(logicPool, cfg.Resilience)
 	pusher := service.NewGatewayPusher(gwPool)
 
 	// 6. Router + handlers

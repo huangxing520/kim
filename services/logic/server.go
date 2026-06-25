@@ -21,6 +21,7 @@ import (
 	"github.com/go-redis/redis/v7"
 
 	"github.com/klintcheng/kim/gen/rpc"
+	"github.com/klintcheng/kim/internal/client"
 	"github.com/klintcheng/kim/internal/logger"
 	"github.com/klintcheng/kim/internal/naming"
 	"github.com/klintcheng/kim/internal/server"
@@ -86,8 +87,16 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		Cache:     rdb,
 	}
 
-	// 创建 gRPC server
-	grpcSrv, err := server.NewGRPCServer(cfg.Listen, server.WithServiceName("logic"))
+	// 初始化 Sentinel（断路器 + 限流器）
+	if err := client.InitSentinel(); err != nil {
+		logger.LogicLogger.Warnf("init sentinel (resilience disabled): %v", err)
+	}
+
+	// 创建 gRPC server（挂载服务端限流）
+	grpcSrv, err := server.NewGRPCServer(cfg.Listen,
+		server.WithServiceName("logic"),
+		server.WithLimiter(cfg.Resilience.Limiter),
+	)
 	if err != nil {
 		return nil, err
 	}

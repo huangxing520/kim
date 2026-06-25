@@ -19,6 +19,7 @@ type Config struct {
 	MessageDb     string              `mapstructure:"message_db"`
 	LogLevel      string              `mapstructure:"log_level"`
 	Kafka         model.KafkaSettings `mapstructure:"kafka"`
+	Resilience    config.ResilienceConfig `mapstructure:"resilience"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -34,6 +35,11 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"
+	}
+	// 合并弹性配置默认值
+	defaults := config.DefaultResilienceConfig()
+	if !cfg.Resilience.Breaker.Enable {
+		cfg.Resilience = defaults
 	}
 	return &cfg, nil
 }
